@@ -3,8 +3,20 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck:scripts && npm run typecheck --workspaces --if-present",
+    "typecheck:scripts": "tsc --noEmit",
+    "dev": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api",
+    "build": "npm run build --workspaces --if-present",
+    "db:migrate": "npm run migrate -w packages/db",
+    "db:seed": "npm run seed -w packages/db",
     "owner-tx": "tsx scripts/ens/owner-tx.ts"
   },
   "dependencies": {
@@ -14,6 +26,6 @@
   "devDependencies": {
     "@types/node": "22.10.2",
     "tsx": "4.19.2",
-    "typescript": "5.7.2"
+    "typescript": "5.9.3"
   }
 }

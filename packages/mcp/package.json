@@ -1,0 +1,28 @@
+{
+  "name": "@nanite/mcp",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "bin": {
+    "nanite-mcp": "./bin/nanite-mcp.mjs"
+  },
+  "scripts": {
+    "start": "tsx src/bin.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "tsx": "4.19.2",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}
