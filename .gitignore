@@ -6,3 +6,13 @@ secrets/
 .secrets/
 *.key
 *.mnemonic
+.design-refs/
+.next/
+*.tsbuildinfo
+next-env.d.ts
+e2e/artifacts/
+e2e/test-results/
+.shots/
+e2e/.playwright-cli/
+e2e/.playwright/
+packages/ens/live-*.log
