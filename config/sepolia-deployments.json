@@ -1,0 +1,67 @@
+{
+  "chainId": 11155111,
+  "resolverDeploy": {
+    "txHash": "0x16643eee2e53745bd1b9261b8eecea71f77bcc4a3c81d5be9ccb37a4469614bc",
+    "blockNumber": 12070087,
+    "status": "success",
+    "from": "0x38CbFe210ce51A97fE698982952412AB12ad3dab"
+  },
+  "resolverProxy": {
+    "address": "0xd8Bab6066f02Edc516538d91c44Efae7e4145744",
+    "matchesPrediction": true,
+    "salt": "105482450369678987281344335414066458817208373546060653435843420626028056764980",
+    "deployBlock": 12070087
+  },
+  "register": {
+    "txHash": "0xfb4e34adf38b20704bbc9d6d7c5a7c82bd67bc7b6f44513b4abe893588d10d86",
+    "blockNumber": 12070089,
+    "status": "success",
+    "from": "0x38CbFe210ce51A97fE698982952412AB12ad3dab",
+    "label": "t04test",
+    "expiry": 1796481084,
+    "roleBitmap": "0x1110000000000000000000000000000001100000"
+  },
+  "registeredState": {
+    "status": 2,
+    "expiry": 1796481084,
+    "latestOwner": "0xfAD31e74F1Cb69046BBB2e4A15ce653beE6936C0",
+    "tokenId": "0x1eef9ef43fee42a6f096569773d20e39f9a1132d1a9d092561d9192900000000",
+    "resource": "0x1eef9ef43fee42a6f096569773d20e39f9a1132d1a9d092561d9192900000000",
+    "userRoles": "0x1110000000000000000000000000000001100000",
+    "resolver": "0xd8Bab6066f02Edc516538d91c44Efae7e4145744"
+  },
+  "grantSetterRoles": {
+    "txHash": "0xc257a7a154792b8f31b14f03055ef73224dec1153a58b60b5159d914496bbf22",
+    "blockNumber": 12070092,
+    "status": "success",
+    "from": "0x38CbFe210ce51A97fE698982952412AB12ad3dab",
+    "resource": "0x159232e963e48c2b29936ac60add1c65bfcf046bffaad1a3660c3464a47fcac4"
+  },
+  "agent0SetText": {
+    "txHash": "0x363eb160eb5578134b0dfa32ffb96cd2e8598d79848f8dd06b3828ecd2f882d2",
+    "blockNumber": 12070099,
+    "status": "success",
+    "from": "0xC0575045B1acacC1349e3e5f8bE20FBA3a8E287b",
+    "value": "updated by agent 0 at 2026-11-05T14:33:18.865Z"
+  },
+  "verification": {
+    "before": {
+      "addr": "0xC0575045B1acacC1349e3e5f8bE20FBA3a8E287b",
+      "email": "t04test@nanite.test",
+      "pubkey": "placeholder-x25519-pubkey",
+      "ctx": "updated by agent 0 at 2026-11-05T14:32:20.906Z"
+    },
+    "after": {
+      "addr": "0xC0575045B1acacC1349e3e5f8bE20FBA3a8E287b",
+      "email": "t04test@nanite.test",
+      "pubkey": "placeholder-x25519-pubkey",
+      "ctx": "updated by agent 0 at 2026-11-05T14:33:18.865Z"
+    },
+    "wroteValue": "updated by agent 0 at 2026-11-05T14:33:18.865Z",
+    "negativeSimulations": {
+      "agent0 setText(email)": "EACUnauthorizedAccountRoles(73508084087506755238065580618205417695768477860288182259115864347054110637621, 16, 0xC0575045B1acacC1349e3e5f8bE20FBA3a8E287b)",
+      "agent0 setAddress(60)": "EACUnauthorizedAccountRoles(89888391317382433555246715937759731908016738462804348588547497852219330431614, 1, 0xC0575045B1acacC1349e3e5f8bE20FBA3a8E287b)",
+      "agent1 setText(agent-context)": "EACUnauthorizedAccountRoles(9756880871211087119462890628410095969001155726731944382148495028902581750468, 16, 0xd817c0CbE139Bd900Fcfe7C016Df15D4d11EFab8)"
+    }
+  }
+}
