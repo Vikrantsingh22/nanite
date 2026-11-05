@@ -1,0 +1,25 @@
+services:
+  tools:
+    image: node:22
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - SEPOLIA_RPC_URL=${SEPOLIA_RPC_URL:-https://ethereum-sepolia-rpc.publicnode.com}
+    command: ["bash"]
+
+  signer:
+    image: node:22
+    working_dir: /app/signer
+    volumes:
+      - ./signer:/app/signer:ro
+    ports:
+      - "127.0.0.1:5173:5173"
+    command: ["npx", "--yes", "http-server@14.1.1", ".", "-p", "5173", "-a", "0.0.0.0", "-c-1", "--cors"]
+
+volumes:
+  node_modules:
