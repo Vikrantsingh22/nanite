@@ -1,0 +1,16 @@
+{
+  "step": "set-subregistry",
+  "description": "ETHRegistry.setSubregistry(\"nanitecom\", predicted UserRegistry proxy)",
+  "chainId": 11155111,
+  "from": "0x8fFD876f6200BCF671714E35b860aDFD57a6a542",
+  "to": "0xD4eBcbBdF463C9c45784603Db0dDD499BC44A8B4",
+  "value": "0",
+  "data": "0x341ec559e2fa25956ff55d6213aeaa4434c3eff0cbc108d6bf63e3ffdb78594abeb460df000000000000000000000000d2be04253e815972d6a1d995670ebac7a6c8c786",
+  "decoded": {
+    "function": "setSubregistry(uint256,address)",
+    "anyId": "102664674939450286101295015054726160491082974919718811858595569105402068230367",
+    "anyIdHex": "0xe2fa25956ff55d6213aeaa4434c3eff0cbc108d6bf63e3ffdb78594abeb460df",
+    "label": "nanitecom",
+    "registry": "0xD2BE04253E815972D6a1D995670eBAc7a6C8C786"
+  }
+}

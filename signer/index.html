@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nanite owner signer</title>
+<style>
+body{font:14px/1.45 system-ui,sans-serif;max-width:860px;margin:24px auto;padding:0 16px}
+code,pre{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+pre{background:#f4f4f5;padding:10px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.tx{border:1px solid #ccc;border-radius:8px;padding:12px 16px;margin:14px 0}
+.ok{color:#0a7d32}.bad{color:#b00020}
+button{padding:8px 14px;font-size:14px;cursor:pointer}
+</style></head><body>
+<h1>Nanite owner signer</h1>
+<p>Local page. Review each transaction, then sign in your browser wallet. No keys are handled here.</p>
+<p><button id="connect">Connect wallet</button> <span id="status"></span></p>
+<div id="txs">Loading...</div>
+<script>
+const OWNER = "0x8fFD876f6200BCF671714E35b860aDFD57a6a542".toLowerCase();
+const CHAIN_HEX = "0xaa36a7"; // 11155111
+const $ = (id) => document.getElementById(id);
+let account = null, chainId = null;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function refresh() {
+  if (!window.ethereum) { $("status").innerHTML = '<span class="bad">No window.ethereum found</span>'; return; }
+  const accts = await ethereum.request({ method: "eth_accounts" });
+  account = accts[0] ? accts[0].toLowerCase() : null;
+  chainId = await ethereum.request({ method: "eth_chainId" });
+  const accOk = account === OWNER, chainOk = chainId === CHAIN_HEX;
+  $("status").innerHTML = `Account: <code>${esc(account ?? "not connected")}</code> <span class="${accOk ? "ok" : "bad"}">${accOk ? "owner" : "NOT the owner"}</span> | Chain: <code>${esc(chainId)}</code> <span class="${chainOk ? "ok" : "bad"}">${chainOk ? "Sepolia" : "NOT Sepolia"}</span> ${chainOk ? "" : '<button id="sw">Switch to Sepolia</button>'}`;
+  if ($("sw")) $("sw").onclick = async () => { try { await ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN_HEX }] }); } catch (e) { alert(e.message); } refresh(); };
+  document.querySelectorAll(".send").forEach((b) => b.disabled = !(accOk && chainOk));
+}
+$("connect").onclick = async () => { try { await ethereum.request({ method: "eth_requestAccounts" }); } catch (e) { alert(e.message); } refresh(); };
+if (window.ethereum) { ethereum.on?.("accountsChanged", refresh); ethereum.on?.("chainChanged", refresh); }
+
+async function load() {
+  let files;
+  try { files = await (await fetch("txs/index.json", { cache: "no-store" })).json(); } catch { $("txs").textContent = "No txs/index.json. Run owner-tx.ts first."; return; }
+  if (!files.length) { $("txs").textContent = "No transactions built yet."; return; }
+  $("txs").innerHTML = "";
+  for (const f of files) {
+    const tx = await (await fetch("txs/" + f, { cache: "no-store" })).json();
+    const d = document.createElement("div"); d.className = "tx";
+    d.innerHTML = `<h3>${esc(tx.step)}</h3><p>${esc(tx.description)}</p>
+      <p>To: <code>${esc(tx.to)}</code><br>Value: <code>${esc(tx.value)}</code> | Chain: <code>${esc(tx.chainId)}</code> | From: <code>${esc(tx.from)}</code></p>
+      ${tx.notes ? "<p><em>" + tx.notes.map(esc).join("; ") + "</em></p>" : ""}
+      <p>Decoded args:</p><pre>${esc(JSON.stringify(tx.decoded, null, 2))}</pre>
+      <p>Raw data:</p><pre>${esc(tx.data)}</pre>
+      <button class="send" disabled>Sign &amp; send</button> <span class="res"></span>`;
+    d.querySelector(".send").onclick = async () => {
+      const res = d.querySelector(".res");
+      try {
+        const hash = await ethereum.request({ method: "eth_sendTransaction", params: [{ from: account, to: tx.to, data: tx.data, value: "0x0" }] });
+        res.innerHTML = `Sent: <code>${esc(hash)}</code> <a target="_blank" rel="noopener" href="https://sepolia.etherscan.io/tx/${esc(hash)}">Etherscan</a>`;
+      } catch (e) { res.innerHTML = `<span class="bad">${esc(e.message ?? e)}</span>`; }
+    };
+    $("txs").appendChild(d);
+  }
+  refresh();
+}
+load(); refresh();
+</script></body></html>

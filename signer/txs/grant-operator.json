@@ -1,0 +1,21 @@
+{
+  "step": "grant-operator",
+  "description": "UserRegistry proxy.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, operator)",
+  "chainId": 11155111,
+  "from": "0x8fFD876f6200BCF671714E35b860aDFD57a6a542",
+  "to": "0xD2BE04253E815972D6a1D995670eBAc7a6C8C786",
+  "value": "0",
+  "data": "0x072d5d77000000000000000000000000000000000000000000000000000000000001000100000000000000000000000038cbfe210ce51a97fe698982952412ab12ad3dab",
+  "decoded": {
+    "function": "grantRootRoles(uint256,address)",
+    "roleBitmap": "0x10001",
+    "roles": [
+      "ROLE_REGISTRAR",
+      "ROLE_RENEW"
+    ],
+    "account": "0x38CbFe210ce51A97fE698982952412AB12ad3dab"
+  },
+  "notes": [
+    "Requires step deploy-user-registry to be mined first"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "step": "set-parent",
+  "description": "UserRegistry proxy.setParent(ETHRegistry, \"nanitecom\")",
+  "chainId": 11155111,
+  "from": "0x8fFD876f6200BCF671714E35b860aDFD57a6a542",
+  "to": "0xD2BE04253E815972D6a1D995670eBAc7a6C8C786",
+  "value": "0",
+  "data": "0x5357263f000000000000000000000000d4ebcbbdf463c9c45784603db0ddd499bc44a8b4000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000096e616e697465636f6d0000000000000000000000000000000000000000000000",
+  "decoded": {
+    "function": "setParent(address,string)",
+    "parent": "0xD4eBcbBdF463C9c45784603Db0dDD499BC44A8B4",
+    "label": "nanitecom"
+  },
+  "notes": [
+    "Requires step deploy-user-registry to be mined first"
+  ]
+}
