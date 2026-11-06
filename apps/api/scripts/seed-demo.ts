@@ -6,8 +6,8 @@
  *
  *   docker compose run --rm tools npx tsx apps/api/scripts/seed-demo.ts [--username=nanitedemo] [--api=http://api:4000]
  *
- * Re-run it right before a demo: conversation mail lives about 6 months, but OTPs expire after 5 minutes by
- * design, so a re-run sends fresh OTPs (and nothing else). The wallet must not already be bound to the legacy
+ * Re-run it right before a demo: conversation mail lives 2 days by default (the per-agent nanite.mail-ttl), and OTPs
+ * expire after 5 minutes by design, so a re-run sends fresh OTPs and anything that has expired. The wallet must not already be bound to the legacy
  * placeholder `vikrant` row made by `npm run db:seed` (that row has dummy keys); use a database without it
  * (LIVE-E2E.md, "Databases"). Prints step results, addresses and entity keys only; no tokens, keys or content.
  */
