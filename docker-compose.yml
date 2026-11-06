@@ -130,12 +130,43 @@ services:
       - DISPLAY=:99
     ports:
       - "127.0.0.1:6080:6080"
+      # Playwright MCP over HTTP (demo/reddit), attached to the headed Chromium via CDP. No auth: 127.0.0.1 only.
+      - "127.0.0.1:8931:8931"
     depends_on:
       - web
       - api
     command: ["bash", "/app/e2e/bin/headed-start.sh"]
 
+  # --- demo/self-hosted: the "user's own machine". The key file lives in the named volume kit_keys (or in the folder
+  # KIT_KEYS_DIR points to) and is mounted READ-ONLY into the stdio MCP kit. Run via `docker compose run --rm -i -T kit`.
+  kit-keygen:
+    profiles: ["kit"]
+    image: node:22
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - kit_keys:/keys
+    command: ["node", "packages/mcp/bin/nanite-mcp.mjs", "keygen", "--out", "/keys"]
+
+  kit:
+    profiles: ["kit"]
+    image: node:22
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - ${KIT_KEYS_DIR:-kit_keys}:/keys:ro
+    environment:
+      - NANITE_API_URL=${KIT_API_URL:-http://api:4000}
+      - NANITE_AGENT_TOKEN=${NANITE_SELF_AGENT_TOKEN:-}
+      - NANITE_AGENT_KEY_FILE=/keys/agent-key.json
+    # stdio MCP server: nothing but JSON-RPC may reach stdout (so no `npm run`, which prints a banner)
+    command: ["node", "packages/mcp/bin/nanite-mcp.mjs"]
+
+
 volumes:
+  kit_keys:
   e2e_node_modules:
   node_modules:
   web_node_modules:

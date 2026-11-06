@@ -19,3 +19,13 @@ e2e/.playwright/
 packages/ens/live-*.log
 apps/api/.live-agent-token
 apps/api/.live-selfhosted/
+# demo kits: anything that can hold a token or key
+demo/**/.env
+demo/**/keys/
+demo/**/*.key
+demo/**/agent-key.json
+demo/**/token
+demo/**/mail*.json
+
+# Playwright MCP run output (snapshots, logs)
+e2e/.playwright-mcp/

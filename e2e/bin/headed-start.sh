@@ -11,4 +11,9 @@ fluxbox >/tmp/fluxbox.log 2>&1 &
 x11vnc -display :99 -forever -shared -nopw -localhost -rfbport 5900 -quiet >/tmp/x11vnc.log 2>&1 &
 # Shared headed Chromium for the headed test config (ws://127.0.0.1:9222/pw); retried until node_modules exist.
 (cd /app/e2e && until node bin/headed-server.mjs; do sleep 3; done) >/tmp/headed-server.log 2>&1 &
+# Demo browser for Claude Code (demo/reddit): one persistent headed Chromium with CDP on 127.0.0.1:9223, plus Playwright MCP over
+# HTTP on :8931 attached to it. Both are retried until they come up (node_modules volume may still be filling).
+(cd /app/e2e && until node bin/headed-cdp.mjs; do sleep 3; done) >/tmp/headed-cdp.log 2>&1 &
+(until curl -sf http://127.0.0.1:9223/json/version >/dev/null; do sleep 1; done
+ until playwright-mcp --cdp-endpoint http://127.0.0.1:9223 --host 0.0.0.0 --port 8931 --allowed-hosts '*'; do sleep 3; done) >/tmp/playwright-mcp.log 2>&1 &
 exec websockify --web /usr/share/novnc 6080 localhost:5900
