@@ -141,6 +141,38 @@ export const domains = pgTable(
   ],
 );
 
+/**
+ * The mail domain every user adds during onboarding (T3.6). One per user. `records` is Resend's records array as
+ * returned (DNS names and values are public data) and `dns_check` our own public-DNS lookup of each record
+ * (`{ checkedAt, allFound, records: [{ key, found }] }`). `status` is stored as text: Resend's own values
+ * (`not_started`, `pending`, `verified`, `failed`, `temporary_failure`) and whatever it adds later.
+ */
+export const userDomains = pgTable(
+  "user_domains",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    resendDomainId: text("resend_domain_id").notNull(),
+    region: text("region").notNull(),
+    status: text("status").notNull().default("not_started"),
+    records: jsonb("records").notNull().default(sql`'[]'::jsonb`),
+    dnsCheck: jsonb("dns_check"),
+    lastVerifyRequestedAt: timestamp("last_verify_requested_at", { withTimezone: true }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("user_domains_user_id_unique").on(t.userId),
+    unique("user_domains_name_unique").on(t.name),
+    index("user_domains_resend_domain_id_idx").on(t.resendDomainId),
+    check("user_domains_name_lowercase", sql`${t.name} = lower(${t.name})`),
+  ],
+);
+
 export const agents = pgTable(
   "agents",
   {

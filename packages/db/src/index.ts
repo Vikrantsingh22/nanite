@@ -6,3 +6,4 @@ export * from "./queries/agent-api.js";
 export { runMigrations, migrationsFolder } from "./migrate.js";
 export { seedDemo, type SeedOptions } from "./seed.js";
 export * from "./queries/outbound.js";
+export * from "./queries/domains.js";
