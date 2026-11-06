@@ -16,6 +16,9 @@
  *   ... --wait-inbound --agent=<agent id> [--timeout=300] [--api=...]
  *       Polls the user inbox (session as the test wallet) until a NEW non-sent mail arrives, decrypts it and prints
  *       booleans only: subject present, from present, otp detected.
+ *   ... --webhook-endpoint=<https url>
+ *       PATCHes the account's single Resend webhook to the new endpoint (events and signing secret unchanged) and
+ *       prints only the endpoint and events. Used once to move the webhook to production (docs/deployment.md).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -57,8 +60,15 @@ function printDomain(d: DomainInfo) {
 }
 
 async function main() {
+  const webhookEndpoint = arg("webhook-endpoint");
+  if (webhookEndpoint !== undefined) {
+    const hook = await createResendAdmin(need("RESEND_API_KEY")).setWebhookEndpoint(webhookEndpoint);
+    say(`webhook endpoint: ${hook.endpoint}`);
+    say(`webhook events: ${hook.events.join(", ")}`);
+    return;
+  }
   const modes = ["check", "create-domain", "verify", "send-test", "wait-inbound"].filter(flag);
-  if (modes.length !== 1) throw new Error("choose exactly one of --check, --create-domain, --verify, --send-test, --wait-inbound (see the header of this file)");
+  if (modes.length !== 1) throw new Error("choose exactly one of --check, --create-domain, --verify, --send-test, --wait-inbound, --webhook-endpoint=<url> (see the header of this file)");
   const mode = modes[0]!;
 
   if (mode === "check" || mode === "create-domain" || mode === "verify") {

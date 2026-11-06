@@ -114,6 +114,32 @@ describe("resend domain admin (fake fetch)", () => {
     expect(await admin.findDomain("other.example.com")).toBeNull();
   });
 
+  it("moves the single webhook to a new https endpoint, keeps events, prints no secret", async () => {
+    const hook = { id: "wh_1", endpoint: "https://old.trycloudflare.com/webhooks/resend", events: ["email.received", "domain.updated"], signing_secret: "whsec_TOPSECRET" };
+    const calls: { method: string; path: string; body: unknown }[] = [];
+    const f = (async (url: string | URL, init: RequestInit = {}) => {
+      const path = new URL(String(url)).pathname;
+      const method = init.method ?? "GET";
+      calls.push({ method, path, body: init.body ? JSON.parse(String(init.body)) : undefined });
+      if (method === "GET" && path === "/webhooks") return new Response(JSON.stringify({ data: [{ id: hook.id, endpoint: hook.endpoint, events: hook.events }] }));
+      if (method === "PATCH" && path === "/webhooks/wh_1") {
+        hook.endpoint = (JSON.parse(String(init.body)) as { endpoint: string }).endpoint;
+        return new Response(JSON.stringify({ id: hook.id }));
+      }
+      if (method === "GET" && path === "/webhooks/wh_1") return new Response(JSON.stringify(hook));
+      return new Response("{}", { status: 404 });
+    }) as typeof fetch;
+    const admin = createResendAdmin(KEY, f);
+    const out = await admin.setWebhookEndpoint("https://api.nanite.itsvikrant.tech/webhooks/resend");
+    expect(out).toEqual({ endpoint: "https://api.nanite.itsvikrant.tech/webhooks/resend", events: ["email.received", "domain.updated"] });
+    expect(JSON.stringify(out)).not.toContain("whsec_");
+    expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({ endpoint: "https://api.nanite.itsvikrant.tech/webhooks/resend" });
+    await expect(admin.setWebhookEndpoint("http://insecure.example.com/x")).rejects.toThrow("https");
+    await expect(admin.setWebhookEndpoint("not a url")).rejects.toThrow("absolute");
+    const none = createResendAdmin(KEY, (async () => new Response(JSON.stringify({ data: [] }))) as unknown as typeof fetch);
+    await expect(none.setWebhookEndpoint("https://a.example.com/x")).rejects.toThrow("found 0");
+  });
+
   it("maps record names under the parent zone to full names, with MX priority and the untruncated value", () => {
     const d = domain();
     expect(parentZone(d.name, d.records)).toBe("itsvikrant.tech");

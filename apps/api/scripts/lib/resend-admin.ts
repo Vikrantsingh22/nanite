@@ -93,6 +93,26 @@ export function createResendAdmin(apiKey: string, fetchImpl: typeof fetch = fetc
       // The create response already carries the records; the GET is the authoritative, complete view.
       return { domain: made.records?.length ? made : await api.getDomain(made.id), created: true };
     },
+    /**
+     * Points the account's single webhook at a new endpoint (PATCH /webhooks/{id}); events and signing secret stay.
+     * Fails unless exactly one webhook exists. Returns only the endpoint and events (never the secret).
+     */
+    async setWebhookEndpoint(endpoint: string): Promise<{ endpoint: string; events: string[] }> {
+      let url: URL;
+      try {
+        url = new URL(endpoint);
+      } catch {
+        throw new Error("webhook endpoint must be an absolute https URL");
+      }
+      if (url.protocol !== "https:") throw new Error("webhook endpoint must be an https URL");
+      const list = await call<{ data?: Array<{ id: string; endpoint?: string; events?: string[] }> }>("GET", "/webhooks");
+      const hooks = list.data ?? [];
+      if (hooks.length !== 1) throw new Error(`expected exactly one Resend webhook, found ${hooks.length}`);
+      const hook = hooks[0]!;
+      await call("PATCH", `/webhooks/${encodeURIComponent(hook.id)}`, { endpoint: url.toString() });
+      const after = await call<{ endpoint?: string; events?: string[] }>("GET", `/webhooks/${encodeURIComponent(hook.id)}`);
+      return { endpoint: after.endpoint ?? url.toString(), events: after.events ?? hook.events ?? [] };
+    },
     async findDomain(name: string): Promise<DomainInfo | null> {
       const existing = (await api.listDomains()).find((d) => d.name.toLowerCase() === name.toLowerCase());
       return existing ? api.getDomain(existing.id) : null;
