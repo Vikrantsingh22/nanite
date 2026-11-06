@@ -7,7 +7,9 @@
  * agent API (/v1/*) decrypts for the agent. The browser contributes only the wallet address it
  * derived from the seed (the seed never leaves the browser). If the client sends its own
  * `encryptionPublicKey` (seed-derived), the agent is custody = self: the server stores only the
- * public key and cannot decrypt for it.
+ * public key and cannot decrypt for it. A self agent also sends the address of its own mail-signing key
+ * (`signerAddress`, generated on the agent's machine by `nanite-mcp keygen`); the create job publishes it as
+ * `nanite.signer` and no signer key is ever stored here.
  */
 import { generateUserKeypair, keyId as computeKeyId, ready } from "@nanite/crypto";
 import { countMailSince, ensureUserMailDomain, getUserDomain, utcDayStart } from "@nanite/db";
@@ -29,6 +31,7 @@ import {
   nextAgentIndex,
   revokeAgentAccess,
   revokeOtherTokens,
+  setAgentSelfSigner,
   setAgentSigner,
   type AgentRow,
 } from "../agents/queries.js";
@@ -138,6 +141,12 @@ export function agentRoutes(deps: AuthDeps, webOrigin: string, log: (line: strin
       selfKey = Buffer.from(v, "base64");
       if (selfKey.length !== 32 || selfKey.toString("base64") !== v) return c.json({ error: "invalid_encryption_key" }, 400);
     }
+    let selfSigner: string | null = null;
+    if (body.signerAddress !== undefined) {
+      if (!selfKey) return c.json({ error: "signer_requires_self_custody" }, 400);
+      if (typeof body.signerAddress !== "string" || !isAddress(body.signerAddress, { strict: false })) return c.json({ error: "invalid_signer" }, 400);
+      selfSigner = getAddress(body.signerAddress);
+    }
     if (!selfKey && !cfg.masterKey) return c.json({ error: "master_key_not_configured" }, 503);
 
     const expected = await nextAgentIndex(deps.db, user.id);
@@ -147,8 +156,11 @@ export function agentRoutes(deps: AuthDeps, webOrigin: string, log: (line: strin
     const id = randomUUID();
     let publicKey: Uint8Array;
     let sealed: Uint8Array | null = null;
-    let signer: { address: string; sealed: Uint8Array } | null = null;
-    if (selfKey) publicKey = new Uint8Array(selfKey);
+    let signer: { address: string; sealed: Uint8Array | null } | null = null;
+    if (selfKey) {
+      publicKey = new Uint8Array(selfKey);
+      if (selfSigner) signer = { address: selfSigner, sealed: null }; // public address only; the key stays on the agent's machine
+    }
     else {
       const kp = await generateUserKeypair();
       publicKey = kp.publicKey;
@@ -232,7 +244,8 @@ export function agentRoutes(deps: AuthDeps, webOrigin: string, log: (line: strin
     const row = await getOwnedAgent(deps.db, user.id, c.req.param("id"));
     if (!row) return notFound(c);
     c.header("Cache-Control", "no-store");
-    const supported = row.custody === "nanite";
+    const supported = true; // custody nanite: server key; custody self: the address the agent registered
+    const managed = row.custody === "nanite";
     const address = row.signerAddress ? getAddress(row.signerAddress) : null;
     let record: "none" | "pending" | "published" | "mismatch" | "unavailable" = "none";
     let onchain: string | null = null;
@@ -250,7 +263,7 @@ export function agentRoutes(deps: AuthDeps, webOrigin: string, log: (line: strin
         }
       }
     }
-    return c.json({ supported, address, record, onchain });
+    return c.json({ supported, custody: row.custody, managed, address, record, onchain });
   });
 
   app.post("/agents/:id/signer", async (c) => {
@@ -258,9 +271,26 @@ export function agentRoutes(deps: AuthDeps, webOrigin: string, log: (line: strin
     const row = await getOwnedAgent(deps.db, user.id, c.req.param("id"));
     if (!row) return notFound(c);
     if (!chain || !chain.canWrite || !runner) return c.json({ error: "operator_not_configured" }, 503);
+    // Self-hosted agent: the new signer address comes from the agent's machine; no key is generated or stored here.
+    if (row.custody === "self") {
+      const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!b || typeof b.address !== "string" || !isAddress(b.address, { strict: false })) return c.json({ error: "invalid_signer" }, 400);
+      if (row.revokedAt) return c.json({ error: "agent_revoked" }, 409);
+      if (!row.resolverAddress) return c.json({ error: "agent_not_active" }, 409);
+      if (runner.busy(row.id)) return c.json({ error: "job_in_progress" }, 409);
+      const address = getAddress(b.address);
+      const rotatedSelf = !!row.signerAddress;
+      const selfJob = runner.startSigner(row.id, {
+        username: user.username,
+        agentLabel: row.name,
+        address,
+        commit: () => setAgentSelfSigner(deps.db, row.id, address),
+      });
+      c.header("Cache-Control", "no-store");
+      return c.json({ ...jobBody(row, selfJob), signerAddress: address, rotated: rotatedSelf }, 202);
+    }
     if (!cfg.masterKey) return c.json({ error: "master_key_not_configured" }, 503);
     if (row.revokedAt) return c.json({ error: "agent_revoked" }, 409);
-    if (row.custody !== "nanite") return c.json({ error: "self_custody_no_signer" }, 409);
     if (!row.resolverAddress) return c.json({ error: "agent_not_active" }, 409);
     if (runner.busy(row.id)) return c.json({ error: "job_in_progress" }, 409);
     await ready();

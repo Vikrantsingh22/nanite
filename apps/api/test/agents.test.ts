@@ -555,7 +555,7 @@ describe("mail signing (option B)", () => {
     expect(st.steps.at(-1)).toMatchObject({ id: "publish-signer", status: "done", txHash: "0xfff" });
 
     const info = await getSigner(app, u.cookie, id);
-    expect(info).toEqual({ supported: true, address: getAddress(row.signerAddress!), record: "published", onchain: getAddress(row.signerAddress!) });
+    expect(info).toEqual({ supported: true, custody: "nanite", managed: true, address: getAddress(row.signerAddress!), record: "published", onchain: getAddress(row.signerAddress!) });
     // No response ever carries the key (hex) or the sealed blob.
     const all = JSON.stringify([body, st, info, await (await req(app, u.cookie, "/agents")).json()]);
     expect(all).not.toContain(hex);
@@ -581,7 +581,7 @@ describe("mail signing (option B)", () => {
     expect((await getSigner(app, u.cookie, id)).record).toBe("published");
   });
 
-  it("self-custody agents have no signer: columns stay null, no step, POST /signer is 409", async () => {
+  it("self-custody agents without a signerAddress have no signer: columns stay null, no step, POST /signer needs an address", async () => {
     const chain = new FakeAgentChain();
     const app = makeApp(chain);
     const u = await onboardedUser(app);
@@ -600,11 +600,73 @@ describe("mail signing (option B)", () => {
     expect(chain.publishes).toEqual([]);
     const st = await waitJob(app, u.cookie, id, "create");
     expect(st.steps.map((s: any) => s.id)).toEqual(["deploy-resolver", "register-agent", "grant-keys"]);
-    expect(await getSigner(app, u.cookie, id)).toEqual({ supported: false, address: null, record: "none", onchain: null });
+    expect(await getSigner(app, u.cookie, id)).toEqual({ supported: true, custody: "self", managed: false, address: null, record: "none", onchain: null });
     const r = await post(app, u.cookie, `/agents/${id}/signer`);
-    expect(r.status).toBe(409);
-    expect(((await r.json()) as any).error).toBe("self_custody_no_signer");
+    expect(r.status).toBe(400); // a self-hosted agent must say which address to publish
+    expect(((await r.json()) as any).error).toBe("invalid_signer");
     expect(chain.publishes).toEqual([]);
+  });
+
+  it("self-hosted agent: signerAddress is published as nanite.signer, no key is stored; POST /signer {address} rotates it", async () => {
+    const chain = new FakeAgentChain();
+    const app = makeApp(chain);
+    const u = await onboardedUser(app);
+    const kp = await generateUserKeypair();
+    const signer = privateKeyToAccount(generatePrivateKey()).address;
+    const res = await post(app, u.cookie, "/agents", {
+      name: "selfhost",
+      index: 0,
+      walletAddress: newWallet(),
+      encryptionPublicKey: Buffer.from(kp.publicKey).toString("base64"),
+      signerAddress: signer.toLowerCase(),
+    });
+    expect(res.status).toBe(202);
+    const id = ((await res.json()) as any).agent.id as string;
+    expect(await waitActive(app, u.cookie, id)).toBe("active");
+    const row = await sealedOf(id);
+    expect(row.custody).toBe("self");
+    expect(row.signerAddress).toBe(signer.toLowerCase());
+    expect(row.signerKeySealed).toBeNull();
+    expect(row.encryptedPrivateKey).toBeNull();
+    expect(chain.publishes).toEqual([{ agentLabel: "selfhost", address: signer }]);
+    expect((await waitJob(app, u.cookie, id, "create")).steps.at(-1)).toMatchObject({ id: "publish-signer", status: "done" });
+    expect(await getSigner(app, u.cookie, id)).toEqual({ supported: true, custody: "self", managed: false, address: signer, record: "published", onchain: signer });
+
+    // Rotate: the new address is published first, then stored; still no key on the server.
+    const next = privateKeyToAccount(generatePrivateKey()).address;
+    const r = await post(app, u.cookie, `/agents/${id}/signer`, { address: next });
+    expect(r.status).toBe(202);
+    expect(await r.json()).toMatchObject({ kind: "signer", rotated: true, signerAddress: next });
+    expect((await waitJob(app, u.cookie, id, "signer")).status).toBe("done");
+    const after = await sealedOf(id);
+    expect(after.signerAddress).toBe(next.toLowerCase());
+    expect(after.signerKeySealed).toBeNull();
+    expect(chain.signerRecords.get(`selfhost.${u.username}.nanitecom.eth`)).toBe(next);
+
+    // A failed publish keeps the old address.
+    chain.failPublish = true;
+    const again = privateKeyToAccount(generatePrivateKey()).address;
+    await post(app, u.cookie, `/agents/${id}/signer`, { address: again });
+    expect((await waitJob(app, u.cookie, id, "signer")).status).toBe("error");
+    expect((await sealedOf(id)).signerAddress).toBe(next.toLowerCase());
+  });
+
+  it("signerAddress validation: needs a self-custody agent and a real address", async () => {
+    const chain = new FakeAgentChain();
+    const app = makeApp(chain);
+    const u = await onboardedUser(app);
+    const kp = await generateUserKeypair();
+    const base = { name: "badsigner", index: 0, walletAddress: newWallet() };
+    const pk = Buffer.from(kp.publicKey).toString("base64");
+    const noSelf = await post(app, u.cookie, "/agents", { ...base, signerAddress: privateKeyToAccount(generatePrivateKey()).address });
+    expect(noSelf.status).toBe(400);
+    expect(((await noSelf.json()) as any).error).toBe("signer_requires_self_custody");
+    for (const bad of ["0x123", 5, "not-an-address", ""]) {
+      const r = await post(app, u.cookie, "/agents", { ...base, encryptionPublicKey: pk, signerAddress: bad });
+      expect(r.status).toBe(400);
+      expect(((await r.json()) as any).error).toBe("invalid_signer");
+    }
+    expect(chain.creates).toEqual([]);
   });
 
   it("existing agents without a signer get one via POST /signer; a second call rotates it", async () => {
@@ -619,7 +681,7 @@ describe("mail signing (option B)", () => {
     await handle.db.update(agents).set({ signerAddress: null, signerKeySealed: null }).where(eq(agents.id, id));
     chain.signerRecords.clear();
     chain.publishes.length = 0;
-    expect(await getSigner(app, u.cookie, id)).toEqual({ supported: true, address: null, record: "none", onchain: null });
+    expect(await getSigner(app, u.cookie, id)).toEqual({ supported: true, custody: "nanite", managed: true, address: null, record: "none", onchain: null });
 
     const r1 = await post(app, u.cookie, `/agents/${id}/signer`);
     expect(r1.status).toBe(202);

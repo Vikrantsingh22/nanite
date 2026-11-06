@@ -4,37 +4,10 @@
  * encrypted payload, never in a plaintext Arkiv attribute, log line or Postgres row.
  */
 import { createHmac } from "node:crypto";
-import type { EmailType } from "../arkiv/port.js";
+import { htmlToText } from "@nanite/crypto";
 import type { ReceivedEmail } from "../mail/provider.js";
 
-const OTP_KEYWORDS =
-  /\b(verification|verify|one[- ]time|otp|passcode|pass code|security code|login code|sign[- ]?in code|confirmation code|auth(?:entication)? code|2fa|two[- ]factor|your code|code is|pin)\b/i;
-// A 4-8 digit code (optionally written "123 456" or "123-456") that is not part of a longer number.
-const CODE_AFTER_KEYWORD =
-  /\b(?:code|otp|passcode|pin|verification)\b[^\d\n]{0,40}?(?<![\d.,])(\d{3}[ -]?\d{3}|\d{4,8})(?![\d.,]?\d)/i;
-const CODE_STANDALONE = /(?<![\d.,@#$€£-])(\d{6}|\d{4}|\d{8})(?![\d.,]?\d)/;
-const URL_RE = /https?:\/\/[^\s<>"'()\]\[]+/gi;
-const HREF_RE = /href\s*=\s*["'](https?:\/\/[^"']+)["']/gi;
-const MAX_LINKS = 20;
-const MAX_URL_LEN = 2048;
-/** Long mail is conversation even if it mentions a code. */
-const OTP_MAX_BODY_CHARS = 2000;
-
-export function htmlToText(html: string): string {
-  return html
-    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n\s*\n+/g, "\n\n")
-    .trim();
-}
+export { classify, extractLinks, htmlToText, type Classification } from "@nanite/crypto";
 
 export function bodyText(mail: Pick<ReceivedEmail, "text" | "html">): string {
   if (mail.text && mail.text.trim().length > 0) return mail.text;
@@ -61,33 +34,6 @@ export function capBody(text: string, maxBytes = MAX_STORED_BODY_BYTES): { text:
 
 export function capSubject(subject: string): string {
   return subject.length > MAX_STORED_SUBJECT_CHARS ? subject.slice(0, MAX_STORED_SUBJECT_CHARS) : subject;
-}
-
-export function extractLinks(text: string, html: string | null): string[] {
-  const found = new Set<string>();
-  const add = (raw: string) => {
-    const cleaned = raw.replace(/[.,;:!?]+$/, "");
-    if (cleaned.length <= MAX_URL_LEN) found.add(cleaned);
-  };
-  if (html) for (const m of html.matchAll(HREF_RE)) add(m[1]!);
-  for (const m of text.matchAll(URL_RE)) add(m[0]);
-  return [...found].slice(0, MAX_LINKS);
-}
-
-export interface Classification {
-  type: EmailType;
-  otp?: string;
-}
-
-export function classify(subject: string, body: string): Classification {
-  const keyworded = OTP_KEYWORDS.test(subject) || OTP_KEYWORDS.test(body);
-  if (!keyworded || body.length > OTP_MAX_BODY_CHARS) return { type: "conversation" };
-  const m = CODE_AFTER_KEYWORD.exec(body) ?? CODE_AFTER_KEYWORD.exec(subject);
-  const raw = m?.[1] ?? CODE_STANDALONE.exec(subject)?.[1] ?? CODE_STANDALONE.exec(body)?.[1];
-  if (!raw) return { type: "conversation" };
-  const code = raw.replace(/[ -]/g, "");
-  if (code.length < 4 || code.length > 8) return { type: "conversation" };
-  return { type: "otp", otp: code };
 }
 
 const MSGID_RE = /<[^<>\s]+>/g;

@@ -97,7 +97,7 @@ export async function insertAgentWithMailbox(
     custody: "nanite" | "self";
     encryptedPrivateKey: Uint8Array | null;
     /** Mail-signing key (custody = nanite only): address + sealed private key. */
-    signer?: { address: string; sealed: Uint8Array } | null;
+    signer?: { address: string; sealed: Uint8Array | null } | null;
     mailboxAddress: string;
     domainId: string;
   },
@@ -116,7 +116,7 @@ export async function insertAgentWithMailbox(
         custody: a.custody,
         encryptedPrivateKey: a.encryptedPrivateKey ? Buffer.from(a.encryptedPrivateKey) : null,
         signerAddress: a.signer ? a.signer.address.toLowerCase() : null,
-        signerKeySealed: a.signer ? Buffer.from(a.signer.sealed) : null,
+        signerKeySealed: a.signer?.sealed ? Buffer.from(a.signer.sealed) : null,
       });
       await tx.insert(mailboxes).values({ address: a.mailboxAddress, domainId: a.domainId, userId: a.userId, agentId: a.id });
     });
@@ -146,6 +146,11 @@ export async function setAgentSigner(db: Db, agentId: string, s: { address: stri
     .update(agents)
     .set({ signerAddress: s.address.toLowerCase(), signerKeySealed: Buffer.from(s.sealed) })
     .where(eq(agents.id, agentId));
+}
+
+/** Self-hosted agent: stores only the signer ADDRESS (the key lives on the agent's machine), clearing any sealed key. */
+export async function setAgentSelfSigner(db: Db, agentId: string, address: string) {
+  await db.update(agents).set({ signerAddress: address.toLowerCase(), signerKeySealed: null }).where(eq(agents.id, agentId));
 }
 
 /** Marks the agent revoked and cuts all access immediately: tokens revoked, mailbox disabled. */

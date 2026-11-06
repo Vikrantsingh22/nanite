@@ -10,7 +10,10 @@ import { bodyLimit } from "hono/body-limit";
 import type { ArkivReader, EmailRecord } from "@nanite/arkiv";
 import { EMAIL_TYPES, type EmailType } from "@nanite/arkiv";
 import { CryptoError, decryptEmail } from "@nanite/crypto";
-import { getAgentEncryptedKey, insertAuditLog, touchApiToken, type Db } from "@nanite/db";
+import { findSendContext, getAgentEncryptedKey, insertAuditLog, touchApiToken, type Db } from "@nanite/db";
+import { createClient, createNaniteMcpServer } from "@nanite/mcp";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { randomBytes } from "node:crypto";
 import { unsealAgentPrivateKey } from "../agent-api/keys.js";
 import { createRateLimiter, type RateLimiter } from "../agent-api/rate-limit.js";
 import { verifyAgentToken, type AuthedAgent } from "../agent-api/tokens.js";
@@ -87,8 +90,13 @@ export function v1Routes(deps: V1Deps) {
     }
   };
 
+  // /mcp calls /v1 in-process (same auth, same handlers). Those inner calls carry this per-process secret so they are
+  // not rate limited or audited twice: the outer /mcp request already was. It never leaves the process.
+  const internalSecret = randomBytes(24).toString("base64url");
+
   // Auth -> rate limit -> handler -> audit.
-  app.use("/v1/*", async (c, next) => {
+  const guard = async (c: Context<V1Env>, next: () => Promise<void>) => {
+    const internal = c.req.header("x-nanite-internal") === internalSecret;
     const header = c.req.header("authorization") ?? "";
     const m = /^Bearer (\S+)$/i.exec(header);
     const auth = await verifyAgentToken(db, m?.[1], now());
@@ -99,6 +107,7 @@ export function v1Routes(deps: V1Deps) {
     }
     const agent = auth.agent;
     c.set("agent", agent);
+    if (internal) return next();
     const rl = limiter.hit(agent.tokenId);
     if (!rl.allowed) {
       c.header("Retry-After", String(rl.retryAfterSec));
@@ -108,7 +117,9 @@ export function v1Routes(deps: V1Deps) {
     await touchApiToken(db, agent.tokenId, now()).catch(() => undefined);
     await next();
     await audit(agent.agentId, c, c.res.status);
-  });
+  };
+  app.use("/v1/*", guard);
+  app.use("/mcp", guard);
 
   app.onError((err, c) => {
     if (err instanceof BadRequest) return c.json({ error: err.message }, 400);
@@ -162,6 +173,15 @@ export function v1Routes(deps: V1Deps) {
       privateKey.fill(0);
     }
   }
+
+  // Who am I: the ENS name and the From address a self-hosted agent must put into the string it signs.
+  app.get("/v1/me", async (c) => {
+    const agent = c.get("agent");
+    const ctx = await findSendContext(db, agent.agentId);
+    const domain = deps.outbound?.sharedMailDomain;
+    const email = ctx?.mailboxAddress ?? (ctx && domain ? `${ctx.agentName}@${domain}` : null);
+    return c.json({ ensName: agent.ensName, email, custody: agent.custody, keyId: agent.keyId });
+  });
 
   app.get("/v1/inbox", async (c) => {
     const agent = c.get("agent");
@@ -260,6 +280,48 @@ export function v1Routes(deps: V1Deps) {
       }
       const out = await sendEmail({ db, masterKey: deps.masterKey, ...deps.outbound, now: deps.outbound.now ?? now }, c.get("agent"), raw);
       return c.json(out.body, out.http);
+    },
+  );
+
+  // Hosted MCP endpoint (Streamable HTTP, stateless JSON responses). Same bearer token as /v1. The tools call the /v1
+  // routes in-process, so policy, custody and limits are enforced in exactly one place.
+  app.all(
+    "/mcp",
+    bodyLimit({ maxSize: 2 * MAX_SEND_BODY_BYTES, onError: (c) => c.json({ error: "payload_too_large" }, 413) }),
+    async (c) => {
+      const agent = c.get("agent");
+      if (agent.custody === "self") {
+        return c.json(
+          {
+            error: "self_custody",
+            message:
+              "This agent holds its own key, so the hosted MCP endpoint cannot read its mail. Run the local MCP server instead: npx nanite-mcp with NANITE_AGENT_KEY_FILE set.",
+          },
+          403,
+        );
+      }
+      if (c.req.method !== "POST") {
+        c.header("Allow", "POST");
+        return c.json({ error: "method_not_allowed" }, 405);
+      }
+      const token = /^Bearer (\S+)$/i.exec(c.req.header("authorization") ?? "")![1]!;
+      const client = createClient({
+        apiUrl: "http://nanite.internal",
+        token,
+        fetch: ((input: string | URL | Request, init?: RequestInit) => {
+          const headers = new Headers(init?.headers);
+          headers.set("x-nanite-internal", internalSecret);
+          return app.fetch(new Request(input, { ...init, headers }));
+        }) as typeof fetch,
+      });
+      const server = createNaniteMcpServer(client);
+      const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true });
+      await server.connect(transport);
+      try {
+        return await transport.handleRequest(c.req.raw);
+      } finally {
+        await server.close().catch(() => undefined);
+      }
     },
   );
 

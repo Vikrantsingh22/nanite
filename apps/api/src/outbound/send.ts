@@ -9,7 +9,7 @@
  */
 import { createHash } from "node:crypto";
 import type { EmailRecord } from "@nanite/arkiv";
-import { decryptEmail, encryptEmail, senderHash, type EmailMeta, type Recipient } from "@nanite/crypto";
+import { MSGID_RE, buildThreadLinks, decryptEmail, encryptEmail, senderHash, type EmailMeta, type Recipient, type ThreadLinks } from "@nanite/crypto";
 import {
   claimSentLedger,
   finishSentLedger,
@@ -23,7 +23,7 @@ import {
   type Db,
 } from "@nanite/db";
 import { signWithSealedSigner, unsealAgentPrivateKey } from "../agent-api/keys.js";
-import { canonicalSendStringV3, SIG_VERSION, type SendPolicy } from "@nanite/ens";
+import { canonicalSendStringV3, SIG_VERSION, verifyNaniteSignature, type SendPolicy } from "@nanite/ens";
 import { createHmac } from "node:crypto";
 import { threadIdForRoot } from "../inbound/classify.js";
 import type { ArkivWriterPort } from "../arkiv/port.js";
@@ -52,6 +52,8 @@ export interface OutboundEns {
   readSendPolicy(ensName: string): Promise<SendPolicy>;
   /** The `email` text record of an ENS name, or null (used for ENS names in the allowlist). */
   resolveEmail(ensName: string): Promise<string | null>;
+  /** Fresh read of the `nanite.signer` text record (self-hosted agents sign their own mail). Absent: such sends answer 409 no_signer. */
+  readSigner?(ensName: string): Promise<string | null>;
 }
 
 export interface OutboundDeps {
@@ -91,11 +93,11 @@ export type SendOutcome =
         threading?: "unavailable";
       };
     }
-  | { http: 400 | 403 | 404 | 409 | 429 | 502 | 503; body: { error: string } };
+  | { http: 400 | 401 | 403 | 404 | 409 | 429 | 502 | 503; body: { error: string } };
 
-const fail = (http: 400 | 403 | 404 | 409 | 429 | 502 | 503, error: string): SendOutcome => ({ http, body: { error } });
+const fail = (http: 400 | 401 | 403 | 404 | 409 | 429 | 502 | 503, error: string): SendOutcome => ({ http, body: { error } });
 
-function parseInput(raw: unknown):
+function parseInput(raw: unknown, selfSigned = false):
   | { ok: true; to: string; subject: string; body: string; inReplyTo?: string }
   | { ok: false; error: string } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: "invalid_request" };
@@ -109,10 +111,10 @@ function parseInput(raw: unknown):
     return { ok: false, error: "invalid_subject" };
   }
   if (r.body.length === 0) return { ok: false, error: "invalid_body" };
-  if (r.inReplyTo !== undefined && (typeof r.inReplyTo !== "string" || !KEY_RE.test(r.inReplyTo))) {
+  if (!selfSigned && r.inReplyTo !== undefined && (typeof r.inReplyTo !== "string" || !KEY_RE.test(r.inReplyTo))) {
     return { ok: false, error: "invalid_in_reply_to" };
   }
-  return { ok: true, to, subject: r.subject, body: r.body, ...(r.inReplyTo ? { inReplyTo: r.inReplyTo.toLowerCase() } : {}) };
+  return { ok: true, to, subject: r.subject, body: r.body, ...(!selfSigned && typeof r.inReplyTo === "string" && r.inReplyTo ? { inReplyTo: r.inReplyTo.toLowerCase() } : {}) };
 }
 
 type Verdict = { allowed: true } | { allowed: false; code: "policy_off" | "policy_reply_only" | "policy_not_allowed" };
@@ -157,17 +159,45 @@ async function decide(
   }
 }
 
-interface ThreadLinks {
-  /** The Message-ID being answered. */
-  inReplyTo: string;
-  /** Its References (oldest first) followed by its own Message-ID. */
-  references: string[];
+/** Self-hosted agents: the signed send fields, validated by shape here and by signature in sendEmail. */
+const UUID_ID_RE = /^<([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})@([^<>\s@]{1,253})>$/;
+/** The only date format accepted: exactly what `Date.prototype.toUTCString()` writes (RFC 2822 UTC). */
+const DATE_RE = /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/;
+export const SELF_SEND_MAX_SKEW_MS = 5 * 60 * 1000;
+
+interface SelfFields {
+  naniteMessageId: string;
+  /** The uuid inside naniteMessageId; becomes the send_log id, so reuse hits the primary key. */
+  id: string;
+  date: string;
+  signature: string;
+  /** Client-supplied threading (self agents: the server cannot read the original mail). */
+  thread: ThreadLinks | null;
 }
 
-/** One RFC 5322 msg-id: `<...>` with no whitespace, CR/LF or angle brackets inside. Anything else is dropped. */
-const MSGID_RE = /^<[^<>\s]{1,200}>$/;
-const MAX_REFERENCES = 20;
-const MAX_REFERENCES_CHARS = 900;
+/**
+ * Self-hosted send fields. null = none of them present (legacy unsigned send); a string = the 400 error code.
+ * All of naniteMessageId, date and signature must be present together.
+ */
+function parseSelfFields(r: Record<string, unknown>): SelfFields | null | string {
+  const present = ["naniteMessageId", "date", "signature"].filter((k) => r[k] !== undefined);
+  if (present.length === 0) return null;
+  if (present.length !== 3) return "invalid_request";
+  const { naniteMessageId, date, signature } = r;
+  if (typeof naniteMessageId !== "string" || typeof date !== "string" || typeof signature !== "string") return "invalid_request";
+  const m = UUID_ID_RE.exec(naniteMessageId);
+  if (!m) return "invalid_message_id";
+  if (!DATE_RE.test(date) || Number.isNaN(Date.parse(date)) || new Date(Date.parse(date)).toUTCString() !== date) return "invalid_date";
+  if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) return "invalid_signature";
+  let thread: ThreadLinks | null = null;
+  if (r.inReplyTo !== undefined) {
+    if (typeof r.inReplyTo !== "string") return "invalid_in_reply_to";
+    if (r.references !== undefined && (!Array.isArray(r.references) || r.references.length > 100)) return "invalid_references";
+    thread = buildThreadLinks(r.inReplyTo, r.references);
+    if (!thread) return "invalid_in_reply_to";
+  }
+  return { naniteMessageId, id: m[1]!, date, signature, thread };
+}
 
 /**
  * Threading headers for a reply, from the encrypted meta of the mail being answered, read exactly like
@@ -182,12 +212,7 @@ async function threadLinksFor(deps: OutboundDeps, agent: AuthedAgent, rec: Email
     if (!blob) return "unavailable";
     privateKey = await unsealAgentPrivateKey(deps.masterKey, agent.agentId, new Uint8Array(blob));
     const plain = await decryptEmail(rec, { keyId: agent.keyId, publicKey: agent.publicKey, privateKey });
-    const id = plain.meta?.messageId;
-    if (typeof id !== "string" || !MSGID_RE.test(id)) return "unavailable";
-    const refs = Array.isArray(plain.meta?.references) ? plain.meta.references.filter((r): r is string => typeof r === "string" && MSGID_RE.test(r)) : [];
-    const chain = [...new Set([...refs, id])]; // dedupe, keep order; the answered id is last
-    while (chain.length > 2 && (chain.length > MAX_REFERENCES || chain.join(" ").length > MAX_REFERENCES_CHARS)) chain.splice(1, 1); // keep the root and the newest
-    return { inReplyTo: id, references: chain };
+    return buildThreadLinks(plain.meta?.messageId, plain.meta?.references) ?? "unavailable";
   } catch {
     return "unavailable";
   } finally {
@@ -284,7 +309,15 @@ async function sendWithRetry(deps: OutboundDeps, message: Parameters<MailProvide
 }
 
 export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody: unknown): Promise<SendOutcome> {
-  const input = parseInput(rawBody);
+  // Self-hosted agents (custody = self) that sign their own mail send naniteMessageId + date + signature (v3).
+  // Without those fields a self agent still sends the old way: unsigned, policy and limits applied.
+  let self: SelfFields | null = null;
+  if (agent.custody === "self" && rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)) {
+    const parsed = parseSelfFields(rawBody as Record<string, unknown>);
+    if (typeof parsed === "string") return fail(400, parsed);
+    self = parsed;
+  }
+  const input = parseInput(rawBody, self !== null);
   if (!input.ok) return fail(400, input.error);
   const { to, subject, body } = input;
   const now = deps.now?.() ?? new Date();
@@ -294,6 +327,37 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
   if (!ctx || !ctx.userKeyId || !ctx.userPublicKey) return fail(409, "agent_not_ready");
   const from = ctx.mailboxAddress ?? (deps.sharedMailDomain ? `${ctx.agentName}@${deps.sharedMailDomain}` : undefined);
   if (!from) return fail(409, "no_mailbox");
+
+  // 0. Self-signed send: the id must be `<uuid@our mailbox domain>`, the date within +-5 min of server time, and the
+  //    v3 signature must recover to the agent's CURRENT `nanite.signer` record (read fresh from ENS). Nothing is
+  //    reserved or sent before this passes.
+  if (self) {
+    const fromDomain = from.slice(from.lastIndexOf("@") + 1).toLowerCase();
+    const idDomain = UUID_ID_RE.exec(self.naniteMessageId)![2]!.toLowerCase();
+    if (idDomain !== fromDomain) return fail(400, "invalid_message_id");
+    if (Math.abs(Date.parse(self.date) - now.getTime()) > SELF_SEND_MAX_SKEW_MS) return fail(400, "date_skew");
+    const verified = await verifyNaniteSignature(
+      {
+        headers: {
+          "X-Nanite-Agent": agent.ensName,
+          "X-Nanite-Date": self.date,
+          "X-Nanite-Signature": self.signature,
+          "X-Nanite-Sig-Version": SIG_VERSION,
+          "X-Nanite-Message-Id": self.naniteMessageId,
+        },
+        from,
+        to,
+        subject,
+        body,
+      },
+      { ensClient: { getText: async (name) => (deps.ens.readSigner ? deps.ens.readSigner(name) : null) } },
+    );
+    if (!verified.valid) {
+      if (verified.reason === "no_signer_record" || verified.reason === "invalid_signer_record") return fail(409, "no_signer");
+      if (verified.reason === "signer_record_unavailable") return fail(502, "signer_unavailable");
+      return fail(401, "invalid_signature");
+    }
+  }
 
   // 1. Policy, fresh from ENS on every request. Any failure: nothing is sent.
   let policy: SendPolicy;
@@ -319,7 +383,8 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
 
   // 3. inReplyTo must be one of this agent's own entities (otherwise indistinguishable from missing).
   //    Done before the limits are reserved: a 404 must not consume quota, and no lock is held during the fetch.
-  let thread: ThreadLinks | "unavailable" | undefined;
+  // Self-signed sends bring their own threading (the server cannot read the original): sanitized by buildThreadLinks.
+  let thread: ThreadLinks | "unavailable" | undefined = self?.thread ?? undefined;
   if (input.inReplyTo) {
     let rec: EmailRecord | null = null;
     try {
@@ -333,22 +398,31 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
 
   // 4. Limits, atomically: per-agent daily cap (ENS nanite.send-limit) and the Nanite-wide daily mail quota
   //    (sent + received). Count + insert of the allowed row happen under advisory locks (see reserveSend).
-  const reserved = await reserveSend(db, {
+  let reserved: Awaited<ReturnType<typeof reserveSend>>;
+  try {
+    reserved = await reserveSend(db, {
+    ...(self ? { id: self.id } : {}),
     agentId: agent.agentId,
     recipientHash,
     agentLimit: policy.limit,
     quota: deps.dailyMailQuota,
     dayStart: utcDayStart(now),
     snapshot: (extra) => snapshotOf(policy, extra),
-  });
+    });
+  } catch (e) {
+    // The send_log primary key is the self-signed message id: a reused id (even from a failed attempt) is refused.
+    const code = (e as { code?: string; cause?: { code?: string } }).code ?? (e as { cause?: { code?: string } }).cause?.code;
+    if (self && code === "23505") return fail(409, "message_id_reused");
+    throw e;
+  }
   if (!reserved.ok) return fail(429, reserved.reason);
   const log = { id: reserved.id };
 
   // 5. Send. Replies carry In-Reply-To / References taken from the encrypted meta of the mail being answered.
-  const date = now.toUTCString();
+  const date = self?.date ?? now.toUTCString();
   // Our own id travels in a custom header (and is signed). We do NOT set Message-ID: Resend/SES replace it anyway,
   // and the provider's value is fetched after the send for threading (see below).
-  const naniteMessageId = `<${log.id}@${from.slice(from.lastIndexOf("@") + 1)}>`;
+  const naniteMessageId = self?.naniteMessageId ?? `<${log.id}@${from.slice(from.lastIndexOf("@") + 1)}>`;
   const headers: Record<string, string> = { "X-Nanite-Agent": agent.ensName, "X-Nanite-Message-Id": naniteMessageId, "X-Nanite-Date": date };
   if (thread && thread !== "unavailable") {
     headers["In-Reply-To"] = thread.inReplyTo;
@@ -357,7 +431,11 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
   // Signing (option B): the per-agent signer key is unsealed in memory for this call only. Any failure sends
   // the mail unsigned and says so in the response; nothing about the key or the mail is logged.
   let signature: "signed" | "unavailable" = "unavailable";
-  if (ctx.signerKeySealed && ctx.signerAddress && deps.masterKey) {
+  if (self) {
+    headers["X-Nanite-Signature"] = self.signature; // verified above
+    headers["X-Nanite-Sig-Version"] = SIG_VERSION;
+    signature = "signed";
+  } else if (ctx.signerKeySealed && ctx.signerAddress && deps.masterKey) {
     try {
       const signed = await signWithSealedSigner(
         deps.masterKey,
