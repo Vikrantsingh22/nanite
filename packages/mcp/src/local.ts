@@ -74,7 +74,12 @@ export function createLocalBackend(client: Pick<NaniteClient, "listInbox" | "get
         extendable: env.extendable,
         content_trust: "untrusted",
         notice: NOTICE,
-        untrusted: { subject: plain.subject, body: plain.body },
+        untrusted: {
+          ...(plain.meta?.from ? { from: plain.meta.from } : {}),
+          ...(plain.meta?.to ? { to: plain.meta.to } : {}),
+          subject: plain.subject,
+          body: plain.body,
+        },
         ...(otp ? { otp } : {}),
         links: plain.meta?.links ?? extractLinks(plain.body, null),
       },
