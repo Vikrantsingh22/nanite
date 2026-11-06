@@ -38,7 +38,7 @@ Real ENS policy of `alex.t21test.nanitecom.eth` (fresh Universal Resolver read):
 | Reply with `inReplyTo` to a mail that has a Message-ID | provider message has `In-Reply-To: <id>` and `References: <refs...> <id>`; subject unchanged; response has no `threading` |
 | Source without a usable Message-ID, or a self-custody agent | headers omitted, response `"threading": "unavailable"` |
 | Ids with spaces, CR/LF or no `<...>` | dropped; References capped at 20 ids / 900 chars (root and newest kept) |
-| Thread linkage in storage | only inside the encrypted sent copy (`meta.inReplyTo`, `references`, `messageId`); never in Postgres or Arkiv attributes |
+| Thread linkage in storage | only inside the encrypted sent copy (`meta.inReplyTo`, `references`, `messageId` = the provider's id, `naniteMessageId`); never in Postgres or Arkiv attributes |
 | 10 parallel sends, 1 slot left on `nanite.send-limit` | exactly one 200, nine `429 daily_limit` |
 | 10 parallel sends across two agents, 3 slots left on `DAILY_MAIL_QUOTA` | exactly three 200, seven `429 quota_exhausted` (denied rows, not counted as sent) |
 | Inbound over the quota | still stored (`200 stored`); log line `quota_exceeded` with `sent`, `received`, `quota` only |
