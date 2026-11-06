@@ -14,9 +14,13 @@ import { abis } from "./abis.js";
 import { createPublicEnsClient, createViemChainIO, type CallSpec, type ChainIO } from "./chain.js";
 import type { EnsConfig } from "./config.js";
 import {
+  parseRetention,
   parseSendPolicy,
+  RETENTION_KEYS,
   SEND_KEYS,
+  validateRetentionInput,
   validateSendPolicyInput,
+  type RetentionPolicy,
   type SendPolicy,
 } from "./policy.js";
 import {
@@ -35,6 +39,8 @@ import { SIGNER_KEY } from "./signature.js";
 export const YEAR_SECONDS = 365n * 86400n;
 export const DEFAULT_SEND_LIMIT_RECORD = "50";
 export const AGENT_ENDPOINT_KEY = "agent-endpoint[mcp]";
+/** Value of the agent-endpoint[mcp] record: the hosted MCP endpoint of the API at API_PUBLIC_URL (no trailing slash). */
+export const agentEndpointUrl = (apiPublicUrl: string): string => `${apiPublicUrl.replace(/\/+$/, "")}/mcp`;
 
 /** Status enum of IPermissionedRegistry.State. */
 export const STATUS = { AVAILABLE: 0, RESERVED: 1, REGISTERED: 2 } as const;
@@ -83,6 +89,10 @@ export const AGENT_TEXT_KEYS = [
   SEND_KEYS.policy,
   SEND_KEYS.allow,
   SEND_KEYS.limit,
+  RETENTION_KEYS.otpTtl,
+  RETENTION_KEYS.mailTtl,
+  RETENTION_KEYS.extend,
+  RETENTION_KEYS.extendLimit,
   SIGNER_KEY,
 ] as const;
 
@@ -168,12 +178,33 @@ export interface EnsService {
   }): Promise<StepResult>;
   readSendPolicy(ensName: string): Promise<SendPolicy>;
   /**
+   * Operator-signed writes of the retention records (only the fields given). The agent wallet cannot write them:
+   * it holds ROLE_SET_TEXT for `agent-context` only.
+   */
+  setRetentionPolicy(a: {
+    username: string;
+    agentLabel: string;
+    otpTtlMinutes?: number;
+    mailTtlHours?: number;
+    extend?: string;
+    extendLimit?: number;
+  }): Promise<StepResult>;
+  /** Fresh read of the four retention records; missing or invalid values fall back to the defaults (`invalid` counts the bad ones). */
+  readRetentionPolicy(ensName: string): Promise<RetentionPolicy & { invalid: number }>;
+  /**
    * Operator-signed `setText(nanite.signer, <checksummed address>)`. Resumable: if the record already holds
    * the address (fresh read) nothing is sent and the result lists "set:nanite.signer" under `skipped`.
    */
   publishSigner(a: { username: string; agentLabel: string; address: string }): Promise<StepResult>;
   /** Fresh read of the `nanite.signer` record (null when empty). */
   readSigner(ensName: string): Promise<string | null>;
+  /**
+   * Operator-signed `setText(agent-endpoint[mcp], <API_PUBLIC_URL>/mcp)`. Resumable: nothing is sent when the record
+   * already holds the URL (result lists "set:agent-endpoint[mcp]" under `skipped`).
+   */
+  publishAgentEndpoint(a: { username: string; agentLabel: string; url?: string }): Promise<StepResult>;
+  /** Fresh read of the `agent-endpoint[mcp]` record (null when empty). */
+  readAgentEndpoint(ensName: string): Promise<string | null>;
   revokeAgent(a: {
     username: string;
     agentLabel: string;
@@ -330,7 +361,7 @@ export function createEnsService(deps: {
         text("email", a.email),
         text("nanite.pubkey", pubkey),
         text("agent-context", `Nanite agent mailbox ${name}`),
-        text(AGENT_ENDPOINT_KEY, `${config.apiPublicUrl}/mcp`), // placeholder until the MCP endpoint exists
+        text(AGENT_ENDPOINT_KEY, agentEndpointUrl(config.apiPublicUrl)), // the hosted MCP endpoint (Streamable HTTP, agent bearer token)
         text(SEND_KEYS.policy, sendPolicy),
         text(SEND_KEYS.allow, ""),
         text(SEND_KEYS.limit, DEFAULT_SEND_LIMIT_RECORD),
@@ -410,6 +441,34 @@ export function createEnsService(deps: {
     return parseSendPolicy({ policy, allow, limit });
   }
 
+  async function setRetentionPolicy(a: Parameters<EnsService["setRetentionPolicy"]>[0]) {
+    const v = validateRetentionInput(a);
+    const { resolver } = await lookupAgent(a.username, a.agentLabel);
+    if (resolver === zeroAddress) throw new Error("agent has no resolver");
+    const dns = dnsEncode(fullName(a.username, a.agentLabel));
+    const r = newResult();
+    const writes: [string, string][] = [];
+    if (v.otpTtl !== undefined) writes.push([RETENTION_KEYS.otpTtl, v.otpTtl]);
+    if (v.mailTtl !== undefined) writes.push([RETENTION_KEYS.mailTtl, v.mailTtl]);
+    if (v.extend !== undefined) writes.push([RETENTION_KEYS.extend, v.extend]);
+    if (v.extendLimit !== undefined) writes.push([RETENTION_KEYS.extendLimit, v.extendLimit]);
+    for (const [key, value] of writes) {
+      await step(r, `set:${key}`, { address: resolver, abi: abis.resolver, functionName: "setText", args: [dns, key, value] });
+    }
+    return r;
+  }
+
+  async function readRetentionPolicy(ensName: string) {
+    const [otpTtl, mailTtl, extend, extendLimit] = await Promise.all([
+      reader.getText(ensName, RETENTION_KEYS.otpTtl),
+      reader.getText(ensName, RETENTION_KEYS.mailTtl),
+      reader.getText(ensName, RETENTION_KEYS.extend),
+      reader.getText(ensName, RETENTION_KEYS.extendLimit),
+    ]);
+    const { policy, invalid } = parseRetention({ otpTtl, mailTtl, extend, extendLimit });
+    return { ...policy, invalid };
+  }
+
   async function readSigner(ensName: string) {
     const v = (await reader.getText(ensName, SIGNER_KEY))?.trim();
     return v ? v : null;
@@ -429,6 +488,26 @@ export function createEnsService(deps: {
       return r;
     }
     await step(r, label, { address: resolver, abi: abis.resolver, functionName: "setText", args: [dnsEncode(name), SIGNER_KEY, address] });
+    return r;
+  }
+
+  async function readAgentEndpoint(ensName: string) {
+    const v = (await reader.getText(ensName, AGENT_ENDPOINT_KEY))?.trim();
+    return v ? v : null;
+  }
+
+  async function publishAgentEndpoint(a: Parameters<EnsService["publishAgentEndpoint"]>[0]) {
+    const url = a.url ?? agentEndpointUrl(config.apiPublicUrl);
+    const { resolver } = await lookupAgent(a.username, a.agentLabel);
+    if (resolver === zeroAddress) throw new Error("agent has no resolver");
+    const name = fullName(a.username, a.agentLabel);
+    const r = newResult();
+    const label = `set:${AGENT_ENDPOINT_KEY}`;
+    if ((await readAgentEndpoint(name).catch(() => null)) === url) {
+      r.skipped.push(label);
+      return r;
+    }
+    await step(r, label, { address: resolver, abi: abis.resolver, functionName: "setText", args: [dnsEncode(name), AGENT_ENDPOINT_KEY, url] });
     return r;
   }
 
@@ -520,7 +599,7 @@ export function createEnsService(deps: {
     return { name: ensName, resolver, account, text, address };
   }
 
-  return { fullName, createUserName, createAgentName, setSendPolicy, readSendPolicy, publishSigner, readSigner, revokeAgent, resolveAgent, getAgentPermissions };
+  return { fullName, createUserName, createAgentName, setSendPolicy, readSendPolicy, setRetentionPolicy, readRetentionPolicy, publishSigner, readSigner, publishAgentEndpoint, readAgentEndpoint, revokeAgent, resolveAgent, getAgentPermissions };
 }
 
 /** Production wiring: viem public client (cacheTime 0) + operator wallet + Universal Resolver reads. */

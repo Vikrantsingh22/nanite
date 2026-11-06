@@ -17,7 +17,7 @@ export interface EnsConfig {
     /** The nanitecom.eth UserRegistry proxy (children are registered here). */
     parentRegistry: Address;
   };
-  /** Placeholder agent-endpoint[mcp] base URL (API_PUBLIC_URL). */
+  /** Public base URL of the API (API_PUBLIC_URL). The agent-endpoint[mcp] record is `<apiPublicUrl>/mcp`. Must be the https URL agents reach. */
   apiPublicUrl: string;
 }
 

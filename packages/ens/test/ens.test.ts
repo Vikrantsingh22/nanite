@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAddress, keccak256, toBytes, zeroAddress } from "viem";
+import { getAddress, keccak256, stringToHex, toBytes, zeroAddress } from "viem";
 import rolesJson from "../../../config/roles.json" with { type: "json" };
 
 const RR_UPGRADE = BigInt(rolesJson.registry.ROLE_UPGRADE);
@@ -21,6 +21,7 @@ import {
 } from "../src/policy.js";
 import {
   AGENT_TEXT_KEYS,
+  agentEndpointUrl,
   agentResolverSalt,
   clampExpiry,
   createEnsService,
@@ -279,6 +280,31 @@ describe("setSendPolicy / revokeAgent", () => {
     expect(fake.sent.length).toBe(n);
     await expect(svc.publishSigner({ username: "alice", agentLabel: "bot", address: "0x123" })).rejects.toThrow(/valid address/);
     expect(await svc.readSigner("bot.alice.nanitecom.eth")).toBe(AGENT);
+  });
+  it("agent creation writes agent-endpoint[mcp] = <API_PUBLIC_URL>/mcp; publishAgentEndpoint fixes old records and skips when current", async () => {
+    const fake = createFakeChain();
+    const records = new Map<string, string>();
+    const reader = { getAddress: async () => AGENT, getText: async (n: string, k: string) => records.get(`${n}|${k}`) ?? null };
+    const svc = createEnsService({ config, io: fake.io, reader, retryDelayMs: 0 });
+    await svc.createUserName({ username: "alice", userWallet: USER });
+    const a = await svc.createAgentName(agentArgs);
+    expect(a.resolver).toBeTruthy();
+    expect(agentEndpointUrl("https://api.example.test/")).toBe("https://api.example.test/mcp");
+    expect(JSON.stringify(fake.sent, (_k, v) => (typeof v === "bigint" ? v.toString() : v))).toContain(stringToHex("https://api.example.test/mcp").slice(2)); // ABI-encoded inside the resolver initialize calls
+
+    // An old placeholder record is rewritten once, then the script is a no-op.
+    records.set("bot.alice.nanitecom.eth|agent-endpoint[mcp]", "http://localhost:4000/mcp");
+    const r = await svc.publishAgentEndpoint({ username: "alice", agentLabel: "bot" });
+    expect(Object.keys(r.txHashes)).toEqual(["set:agent-endpoint[mcp]"]);
+    const last = fake.sent.at(-1)!;
+    expect(last.fn).toBe("setText");
+    expect(last.args[1]).toBe("agent-endpoint[mcp]");
+    expect(last.args[2]).toBe("https://api.example.test/mcp");
+    records.set("bot.alice.nanitecom.eth|agent-endpoint[mcp]", "https://api.example.test/mcp");
+    const n = fake.sent.length;
+    expect((await svc.publishAgentEndpoint({ username: "alice", agentLabel: "bot" })).skipped).toEqual(["set:agent-endpoint[mcp]"]);
+    expect(fake.sent.length).toBe(n);
+    expect(await svc.readAgentEndpoint("bot.alice.nanitecom.eth")).toBe("https://api.example.test/mcp");
   });
   it("revokeAgent revokes the setter role, optionally unregisters, and is idempotent", async () => {
     const { fake, svc } = setup();
