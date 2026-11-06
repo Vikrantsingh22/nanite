@@ -18,3 +18,4 @@ e2e/.playwright-cli/
 e2e/.playwright/
 packages/ens/live-*.log
 apps/api/.live-agent-token
+apps/api/.live-selfhosted/
