@@ -1,14 +1,12 @@
-import Link from "next/link"
-import { ArrowRightIcon } from "lucide-react"
-
 import { EnsName, StatusLine, type LogLine } from "@/components/nanite"
+import { HomeActions } from "@/components/home-actions"
 import { HomeComposition } from "@/components/home-composition"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Button } from "@/components/ui/button"
+import { SHARED_MAIL_DOMAIN } from "@/lib/config"
 
 const LOG: LogLine[] = [
   { time: "09:14:02", level: "info", text: "resolve alex.vikrant.nanitecom.eth" },
-  { time: "09:14:02", level: "ok", text: "mailbox alex@nanite.email" },
+  { time: "09:14:02", level: "ok", text: `mailbox alex.vikrant@${SHARED_MAIL_DOMAIN}` },
   { time: "09:14:03", level: "ok", text: "mail sealed on Arkiv, readable by your wallet only" },
 ]
 
@@ -29,12 +27,7 @@ export default function Home() {
               Each agent gets its own address. Mail is encrypted on Arkiv, identity and permissions live on ENS, and sending is allowed only when its policy says so.
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <Button size="lg" asChild>
-                <Link href="/styleguide">
-                  Open the style book
-                  <ArrowRightIcon data-icon="inline-end" />
-                </Link>
-              </Button>
+              <HomeActions />
               <EnsName name="alex.vikrant.nanitecom.eth" />
             </div>
           </div>

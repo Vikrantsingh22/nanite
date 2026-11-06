@@ -17,6 +17,7 @@ import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { api, ApiError, type DnsProvider, type DomainCheck, type DomainRecord, type DomainView, type Me } from "@/lib/api"
+import { SHARED_MAIL_DOMAIN } from "@/lib/config"
 
 export const PROVIDER_LABEL: Record<DnsProvider, string> = {
   cloudflare: "Cloudflare",
@@ -552,7 +553,7 @@ export function DomainStep({
   onChanged,
   onContinue,
   variant = "wizard",
-  sharedMailDomain = "nanite.test",
+  sharedMailDomain = SHARED_MAIL_DOMAIN,
 }: {
   me: Me
   onChanged: () => void

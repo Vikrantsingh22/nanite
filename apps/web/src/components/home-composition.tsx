@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { AgentCard, ArkivEntityChip, OtpCountdown } from "@/components/nanite"
+import { SHARED_MAIL_DOMAIN } from "@/lib/config"
 
 const KEY = "0x4e1a9c53d07be2f18a64c9d0e5b3f7a21c8d6e90b7c2f4a1d83e5c6b9a07b7c2"
 const CREATOR = "0x71C0e9d3a5B8f2c41d6A07e9b3C5d8F1a2E49aB3"
@@ -27,7 +28,7 @@ export function HomeComposition() {
       <Step>
         <AgentCard
           ensName="alex.vikrant.nanitecom.eth"
-          email="alex@nanite.email"
+          email={`alex.vikrant@${SHARED_MAIL_DOMAIN}`}
           unread={3}
           policy="reply-only"
         />

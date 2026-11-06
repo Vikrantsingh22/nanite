@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { notFound } from "next/navigation"
 
 import { SectionNav } from "@/components/styleguide/nav"
 import { ColorSection } from "@/components/styleguide/sections/color"
@@ -24,6 +25,8 @@ const HERO_LOG: LogLine[] = [
 ]
 
 export default function StyleguidePage() {
+  // Internal design reference: dev always, production only when NEXT_PUBLIC_SHOW_STYLEGUIDE=1.
+  if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_SHOW_STYLEGUIDE !== "1") notFound()
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
