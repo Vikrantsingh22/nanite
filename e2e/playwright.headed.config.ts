@@ -6,6 +6,10 @@ import { defineConfig, devices } from "@playwright/test";
 const common = { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, video: "off" as const, trace: "off" as const };
 const step = (name: string, file: RegExp, dep?: string) => ({ name, testMatch: file, use: common, ...(dep ? { dependencies: [dep] } : {}) });
 
+// Runtime spreads connectOptions into browserType.connect(), which honours slowMo, but the ConnectOptions type omits it.
+// A non-literal (declared-type) value avoids the excess-property check without loosening the config.
+const connectOptions: { wsEndpoint: string; slowMo: number } = { wsEndpoint: "ws://127.0.0.1:9222/pw", slowMo: Number(process.env.SLOWMO ?? 200) };
+
 export default defineConfig({
   testDir: "./tests",
   outputDir: "./test-results-headed",
@@ -16,7 +20,7 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: process.env.BASE_URL ?? "http://web:3000",
-    connectOptions: { wsEndpoint: "ws://127.0.0.1:9222/pw", slowMo: Number(process.env.SLOWMO ?? 200) },
+    connectOptions,
   },
   projects: [
     step("1-onboarding", /onboarding\.spec\.ts/),
