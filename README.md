@@ -248,10 +248,20 @@ Until `nanite-mcp` is published to npm, run it from a checkout: `docker compose 
 
 ## Retention and limits
 
-| Type | Lifetime | Extension |
-| --- | --- | --- |
-| `otp` | 5 minutes by default | never extendable |
-| `conversation`, `sent` | up to 7,884,000 blocks (about 182.5 days, the Arkiv maximum) | `permissionlessExtension`, so an operator job can extend them |
+Mail disappears from Arkiv after its lifetime unless you or the agent keep it. Lifetimes are per agent, stored as ENS text records that only the operator (on your request) and you can write; the agent's own wallet cannot:
+
+| Type | Default lifetime | ENS record | Extension |
+| --- | --- | --- | --- |
+| `otp` | 5 minutes | `nanite.otp-ttl` (minutes, 1 to 60) | never extendable (no `permissionlessExtension`) |
+| `conversation`, `sent` | 2 days | `nanite.mail-ttl` (hours, 1 to 4380 = 182.5 days) | yes, see below |
+
+Two more records control extensions: `nanite.extend` (`on` default, or `off`) and `nanite.extend-limit` (agent extensions per UTC day, default 20). Missing or invalid records fall back to these defaults; a failed ENS read never blocks mail (the writer uses the defaults). The API caches a policy for at most 60 s per agent. Change them in the dashboard (Agent settings, "Retention"; `GET/PUT /agents/:id/retention`, an operator-signed job like the send policy).
+
+**Keep mail longer.** `POST /v1/emails/:entityKey/extend` with `{"days": 1..182}` (agent token; works for hosted and self-hosted agents because nothing is decrypted), the MCP tool `extend_email {entityKey, days}` (hosted `/mcp`, hosted and local stdio mode) and the Keep button in the inbox (`POST /mail/:agentId/emails/:key/extend`, rate limited to 30 per minute per user, not subject to the agent's permission or daily limit). The new expiry is now + `days` (it never shortens: an expiry that is already later answers `unchanged`). Refusals: `409 otp_not_extendable`, `403 extend_disabled`, `429 extend_limit`, `404` for mail that is not this agent's and this user's. Response: `{status: "extended"|"unchanged", expiresAtBlock, expiresAt}`. Every email in `/v1` and `/mail` responses also carries `expiresAtBlock`, an estimated `expiresAt` (ISO, 2 s blocks) and `extendable`.
+
+**Cost.** The operator pays the network fee (tGLM on the testnet) for every extension, through the same single-flight writer queue as new mail. That is why agent extensions are gated by `nanite.extend` and the daily limit. The daily count is the number of `audit_log` rows labelled `extend` with status 200 since UTC midnight, reserved under a per-agent advisory lock (a failed chain write releases its reservation), so parallel calls cannot overshoot the limit.
+
+Note: with the 2-day default, the `reply-only` send policy only recognises senders who wrote within the mail lifetime; raise `nanite.mail-ttl` or keep the thread if an agent should answer older correspondents.
 
 An entity is limited to about 125 KiB of ciphertext (chain transaction cap about 128.2K bytes); bigger mail is rejected. See [arkiv/schema.md](arkiv/schema.md).
 

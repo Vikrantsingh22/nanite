@@ -28,7 +28,7 @@ Update this table at the end of every task (Todo / In progress / Done / Cut).
 | T3.5 | Outbound send, gated by ENS policy | 2.5h | Done (signing B + threading + quota; dashboard toggle done) |
 | T3.6 | Custom domain onboarding (enter domain → DNS records → auto verify) | 3h | Done (optional; fakes; live user-domain test pending) |
 | T3.7 | Self-hosted agent kit + MCP fixes | 4h | Done (fakes only; needs review; live self-hosted check + `update-agent-endpoints --apply` at deploy pending) |
-| T3.8 | Email expiry control (OTP ttl, 2-day default, extend_email, Keep) | 3h | Running (W1) |
+| T3.8 | Email expiry control (OTP ttl, 2-day default, extend_email, Keep) | 3h | Done (fakes only; needs review; live check pending) |
 | T4.1 | OTP expiry and demo data | 1.5h | Done (live: OTP gone at its expiry block; seed-demo.ts) |
 | T4.2 | Arkiv docs and README | 2h | Mostly done (AI-use note + web claims to confirm after T3.3) |
 | T4.3 | Deploy and live link | 1.5h | Todo |
@@ -220,6 +220,16 @@ Paste this into the new Claude Code conversation:
   - The public-suffix list is a small hard-coded set of two-level suffixes (co.uk, co.in, com.au and others), not the full list.
   - `FAKE_RESEND_DOMAINS=1` (non-production) wires an in-memory Resend and DNS for dev; it never verifies by itself.
   - `apps/api/test/outbound.test.ts` (signature v3 headers) was already failing when I ran the suite; it is outside this task.
+
+### T3.8 (email expiry control), 2026-11-06, W1
+
+- **Outcome:** built and tested against fakes only (fake ENS reads/writes, in-memory Arkiv writer, fake chain block number); no real mail, no Sepolia or Arkiv writes, no migration, no schema change. Needs review plus a live check.
+- **ENS:** `nanite.otp-ttl` (min, 1-60, default 5), `nanite.mail-ttl` (h, 1-4380, default 48), `nanite.extend` (`on`/`off`, default on), `nanite.extend-limit` (default 20, 0-1000). `readRetentionPolicy` / `setRetentionPolicy` in `@nanite/ens` (4 parallel `getText` reads, not a single multicall: the client has no multicall batching); invalid values read as defaults. Agent wallet cannot write them (tests).
+- **Writes:** `apps/api/src/retention.ts` (cache <= 60 s per agent, 4 s read timeout, ENS failure = defaults, remembered 10 s; counts-only logs). Inbound and the sent copy pass `expiresInSeconds`; `@nanite/arkiv` `expiryPlan` default for mail is now 2 days instead of max. OTPs never `permissionlessExtension`.
+- **Extend:** `apps/api/src/extend/extend.ts`; `POST /v1/emails/:key/extend` and `POST /mail/:agentId/emails/:key/extend`; contract and errors in README "Retention and limits". Daily limit: `reserveExtend` in `@nanite/db` counts `audit_log` rows (`endpoint = 'extend'`, status 200) since UTC midnight under `pg_advisory_xact_lock` per agent; a failed chain write flips its row to 502. `unchanged` costs nothing. User route: 30/min per user, not gated by ENS.
+- **Reads:** `expiresAtBlock`, `expiresAt`, `extendable` on every /v1 and /mail email. **MCP:** `extend_email` (hosted, local, /mcp). **Web:** expiry on rows and detail (red under 6 h), Keep popover (7/30/90/182), Agent settings "Retention" card; `GET/PUT /agents/:id/retention` (job kind `retention`).
+- **Tests:** arkiv 30 (+2), ens 52 (+7), mcp 22 (+3), api 273 (new `extend.test.ts`, retention cases in `inbound.test.ts` and `agents.test.ts`), e2e 47 (+4: keep x2, retention x2; axe dark and light). Screenshots: `e2e/artifacts/inbox/keep-picker-*`, `keep-done-*`, `e2e/artifacts/agents/retention-*`, `retention-saved-*` (1440 and 390).
+- **Notes for review:** (1) `reply-only` send policy only sees senders still on Arkiv, so it effectively narrows to the mail lifetime (2 days by default). (2) Mail already on Arkiv keeps its old ~182-day expiry. (3) Each extension costs the operator gas; the daily limit and `nanite.extend` are the guard. (4) Retention button in the dashboard is labelled "Save retention to ENS" so it does not clash with the send-policy "Save to ENS".
 
 ### T3.7 (self-hosted agent kit + MCP fixes), 2026-11-06, U1
 
