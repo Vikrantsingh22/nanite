@@ -1,4 +1,6 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
+import { createRateLimiter, type RateLimiter } from "./agent-api/rate-limit.js";
+import { clientIp } from "./net/client-ip.js";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import type { InboundDeps } from "./inbound/pipeline.js";
@@ -38,6 +40,10 @@ export interface AppDeps {
   mail?: MailDeps;
   /** Custom domain onboarding (/onboarding/domain*, Resend domain.* webhook events). When absent the routes answer 503. */
   domains?: DomainService;
+  /** TRUST_PROXY=1: take the client IP from the proxy's X-Forwarded-For (see net/client-ip.ts). Default false. */
+  trustProxy?: boolean;
+  /** Per-IP limiter for /auth/nonce and /auth/verify (default 60 per minute). */
+  authLimiter?: RateLimiter;
 }
 
 type AppEnv = { Variables: { requestId: string } };
@@ -86,6 +92,21 @@ export function createApp(deps: AppDeps) {
       maxAge: 600,
     }),
   );
+
+  // Sign-in endpoints are unauthenticated: cap them per client IP (behind Caddy only with TRUST_PROXY=1).
+  const authLimiter = deps.authLimiter ?? createRateLimiter({ limit: 60, windowMs: 60_000 });
+  const trustProxy = deps.trustProxy ?? false;
+  app.use("/auth/nonce", async (c, next) => limitByIp(c, next));
+  app.use("/auth/verify", async (c, next) => limitByIp(c, next));
+  async function limitByIp(c: Context, next: () => Promise<void>) {
+    if (c.req.method === "OPTIONS") return next();
+    const rl = authLimiter.hit(clientIp(c, trustProxy));
+    if (!rl.allowed) {
+      c.header("Retry-After", String(rl.retryAfterSec));
+      return c.json({ error: "rate_limited" }, 429);
+    }
+    return next();
+  }
 
   app.get("/", (c) => c.json({ service: "nanite-api" }));
   app.route("/", healthRoutes(deps));

@@ -19,6 +19,7 @@ import { createResendProvider } from "./mail/resend.js";
 import type { InboundDeps } from "./inbound/pipeline.js";
 import { createInboundProcessor } from "./inbound/processor.js";
 import { createRetentionSource } from "./retention.js";
+import { trustProxyFromEnv } from "./net/client-ip.js";
 
 let env;
 try {
@@ -187,6 +188,7 @@ const app = createApp({
     },
   },
   webOrigin: env.webOrigin,
+  trustProxy: trustProxyFromEnv(),
   version: pkg.version,
   ...(inboundDeps ? { inbound: inboundDeps } : {}),
   ...(domainService ? { domains: domainService } : {}),
