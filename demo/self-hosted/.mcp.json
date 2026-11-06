@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "nanite": {
+      "type": "stdio",
+      "command": "docker",
+      "args": ["compose", "-f", "../../docker-compose.yml", "run", "--rm", "-i", "-T", "kit"],
+      "env": {
+        "NANITE_SELF_AGENT_TOKEN": "${NANITE_SELF_AGENT_TOKEN}",
+        "KIT_API_URL": "${KIT_API_URL:-http://api:4000}",
+        "KIT_KEYS_DIR": "${KIT_KEYS_DIR:-kit_keys}"
+      }
+    }
+  }
+}

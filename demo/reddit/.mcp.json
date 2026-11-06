@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "nanite": {
+      "type": "http",
+      "url": "http://localhost:4000/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NANITE_AGENT_TOKEN}"
+      }
+    },
+    "playwright": {
+      "type": "http",
+      "url": "http://localhost:8931/mcp"
+    }
+  }
+}
