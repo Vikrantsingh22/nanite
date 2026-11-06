@@ -36,6 +36,8 @@ export interface PlainMail {
   otp?: string
   links: string[]
   from?: string
+  /** Recipient of a sent copy. */
+  to?: string
 }
 
 export type Decrypted = { ok: true; mail: PlainMail } | { ok: false; reason: string }
@@ -58,7 +60,7 @@ export async function decryptEntity(entity: MailEntity, keys: UnlockedKeys): Pro
       { ciphertext: unb64(entity.ciphertext), wrappedKeys: unb64(entity.wrappedKeys), nonce: unb64(entity.nonce) },
       { keyId: keys.keyId, publicKey: keys.publicKey, privateKey: keys.privateKey },
     )
-    const meta = (plain.meta ?? {}) as { otp?: unknown; links?: unknown; from?: unknown }
+    const meta = (plain.meta ?? {}) as { otp?: unknown; links?: unknown; from?: unknown; to?: unknown }
     return {
       ok: true,
       mail: {
@@ -67,6 +69,7 @@ export async function decryptEntity(entity: MailEntity, keys: UnlockedKeys): Pro
         ...(typeof meta.otp === "string" ? { otp: meta.otp } : {}),
         links: Array.isArray(meta.links) ? meta.links.filter((l): l is string => typeof l === "string") : [],
         ...(typeof meta.from === "string" ? { from: meta.from } : {}),
+        ...(typeof meta.to === "string" ? { to: meta.to } : {}),
       },
     }
   } catch (e) {

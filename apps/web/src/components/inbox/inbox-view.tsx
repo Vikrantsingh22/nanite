@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeftIcon, CheckIcon, CopyIcon, LockIcon, SettingsIcon } from "lucide-react"
+import { ArrowLeftIcon, CheckIcon, CopyIcon, LockIcon, MailOpenIcon, SettingsIcon } from "lucide-react"
 
 import { AgentStatusBadge, useAgents } from "@/components/dashboard/dashboard-view"
 import { MailShell, SessionGate } from "@/components/dashboard/mail-shell"
-import { ArkivEntityChip, EnsName, InboxRow, OtpCountdown } from "@/components/nanite"
+import { ArkivEntityChip, EnsName, InboxRow, OtpCountdown, SenderAvatar } from "@/components/nanite"
 import { useCopy } from "@/components/nanite/use-copy"
 import { useNow } from "@/components/nanite/use-now"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -54,27 +54,28 @@ function InboxBody({ agentId }: { agentId: string }) {
           <ArrowLeftIcon className="size-3" aria-hidden="true" />
           all agents
         </Link>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-2">
-            <h1 className="animate-reveal font-heading text-3xl font-semibold tracking-tighter sm:text-4xl">Inbox</h1>
-            <div className="flex flex-wrap items-center gap-2">
-              {agent ? (
-                <>
-                  <EnsName name={agent.ensName} showStatus={false} />
-                  <span className="font-mono text-xs text-muted-foreground">{agent.email}</span>
-                  <AgentStatusBadge status={agent.status} />
-                </>
-              ) : (
-                <Skeleton className="h-6 w-56" />
-              )}
-            </div>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="animate-reveal font-heading text-3xl font-semibold tracking-tighter sm:text-4xl">Inbox</h1>
           <Button variant="ghost" size="sm" asChild>
             <Link href={`/agents/${agentId}/settings`}>
               <SettingsIcon data-icon="inline-start" />
               Settings
             </Link>
           </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {agent ? (
+            <>
+              <EnsName name={agent.ensName} showStatus={false} />
+              <span className="flex min-w-0 items-center gap-0.5">
+                <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">{agent.email}</span>
+                <CopyButton text={agent.email} label="Copy agent email" />
+              </span>
+              <AgentStatusBadge status={agent.status} />
+            </>
+          ) : (
+            <Skeleton className="h-6 w-56" />
+          )}
         </div>
       </div>
 
@@ -126,13 +127,17 @@ function MailPanel({ agentId, keys }: { agentId: string; keys: Keys }) {
   return (
     <div className="flex flex-col gap-3">
       {error && <ErrorAlert kind={error} />}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-        <nav aria-label="Messages" className={`${current ? "hidden md:block" : "block"} h-fit overflow-hidden rounded-lg border bg-card`}>
+      <div className="flex min-h-[24rem] overflow-hidden md:h-[calc(100dvh-17rem)] md:min-h-[30rem] rounded-lg border bg-card md:divide-x">
+        <nav
+          aria-label="Messages"
+          className={`${current ? "hidden md:block" : "block"} w-full shrink-0 overflow-y-auto md:w-[23rem]`}
+        >
           {rows.map((r) => (
             <InboxRow
               key={r.entity.key}
               senderHash={r.dec?.ok && r.dec.mail.from ? r.dec.mail.from : shortSender(r.entity.senderHash)}
               {...(r.dec ? { subject: r.dec.ok ? r.dec.mail.subject || "(no subject)" : `Cannot decrypt: ${r.dec.reason}` } : {})}
+              {...(r.dec?.ok && r.dec.mail.to ? { to: r.dec.mail.to } : {})}
               type={r.entity.type}
               time={now === null ? "" : formatTime(r.entity.receivedAt, now)}
               expiry={now === null ? null : formatExpiry(r.entity, now)}
@@ -148,7 +153,7 @@ function MailPanel({ agentId, keys }: { agentId: string; keys: Keys }) {
             </div>
           )}
         </nav>
-        <section aria-label="Message" className={`${current ? "block" : "hidden md:block"} min-w-0`}>
+        <section aria-label="Message" className={`${current ? "block" : "hidden md:block"} min-w-0 flex-1 overflow-y-auto`}>
           {current ? (
             <MessageDetail
               row={current}
@@ -158,8 +163,12 @@ function MailPanel({ agentId, keys }: { agentId: string; keys: Keys }) {
               onKept={(patch) => patchEntity(current.entity.key, patch)}
             />
           ) : (
-            <div className="hidden rounded-lg border border-dashed p-8 text-center font-mono text-xs text-muted-foreground md:block">
-              select a message
+            <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+              <span className="flex size-12 items-center justify-center rounded-full border bg-muted text-muted-foreground">
+                <MailOpenIcon className="size-5" aria-hidden="true" />
+              </span>
+              <p className="text-sm font-medium">Select a message</p>
+              <p className="text-xs text-muted-foreground">Decrypted in your browser with your key</p>
             </div>
           )}
         </section>
@@ -209,20 +218,31 @@ function MessageDetail({
   const html = mail ? looksLikeHtml(mail.body) : false
   const exp = entity.type === "otp" ? otpExpiry(entity) : null
 
+  const from = mail?.from ?? shortSender(entity.senderHash)
+  const person = entity.type === "sent" && mail?.to ? mail.to : from
+  const received = new Date(entity.receivedAt * 1000)
+
   return (
-    <article className="flex flex-col gap-4 rounded-lg border bg-card p-4" aria-label="Message detail">
-      <Button variant="ghost" size="sm" className="w-fit md:hidden" onClick={onBack}>
+    <article className="flex min-h-full flex-col gap-5 p-4 sm:p-6" aria-label="Message detail">
+      <Button variant="ghost" size="sm" className="-ml-2 w-fit md:hidden" onClick={onBack}>
         <ArrowLeftIcon data-icon="inline-start" />
         Back to inbox
       </Button>
-      <header className="flex flex-col gap-2">
-        <h2 className="font-heading text-xl font-semibold tracking-tight break-words">
+      <header className="flex flex-col gap-4">
+        <h2 className="font-heading text-xl font-semibold tracking-tight break-words sm:text-2xl">
           {mail ? mail.subject || "(no subject)" : "Encrypted message"}
         </h2>
-        <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground">
-          <span>{mail?.from ?? shortSender(entity.senderHash)}</span>
-          <span aria-hidden="true">·</span>
-          <time dateTime={new Date(entity.receivedAt * 1000).toISOString()}>{when}</time>
+        <div className="flex items-center gap-3">
+          <SenderAvatar sender={person} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm font-medium">
+              {entity.type === "sent" && mail?.to ? `To: ${mail.to}` : from}
+            </span>
+            <span className="flex flex-wrap items-center gap-x-2 font-mono text-xs text-muted-foreground">
+              <time dateTime={received.toISOString()}>{when}</time>
+              {now !== null && <span>({formatTime(entity.receivedAt, now)})</span>}
+            </span>
+          </div>
           <Badge variant="outline">{TYPE_LABEL[entity.type]}</Badge>
         </div>
       </header>
@@ -236,7 +256,7 @@ function MessageDetail({
       {mail?.otp && exp && <OtpCountdown code={mail.otp} expiresAt={exp.expiresAt} totalMs={exp.totalMs} />}
 
       {mail && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 border-t pt-4">
           {html && (
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-xs text-muted-foreground">html message</span>
@@ -248,17 +268,17 @@ function MessageDetail({
           {html && !asText ? (
             <SandboxedHtml html={mail.body} />
           ) : (
-            <pre data-testid="mail-text" className="max-h-[32rem] overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-sm break-words whitespace-pre-wrap">
+            <div data-testid="mail-text" className="text-sm leading-relaxed break-words whitespace-pre-wrap">
               {mail.body}
-            </pre>
+            </div>
           )}
         </div>
       )}
 
       {mail && mail.links.length > 0 && (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5 rounded-md border bg-muted/30 p-3">
           <h3 className="font-mono text-xs text-muted-foreground">links in this message (shown as text, not clickable)</h3>
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col">
             {mail.links.map((l) => (
               <li key={l} className="flex items-center gap-1 font-mono text-xs">
                 <span className="min-w-0 break-all">{l}</span>
@@ -269,19 +289,21 @@ function MessageDetail({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3">
-        {expiry && (
-          <p
-            data-testid="detail-expiry"
-            className={`font-mono text-xs tnum ${expiry.urgent ? "font-medium text-destructive" : "text-muted-foreground"}`}
-          >
-            {expiry.text === "expired" ? "expired" : `expires in ${expiry.text}`}
-          </p>
-        )}
-        {extendable && <KeepControl agentId={agentId} entity={entity} onKept={onKept} />}
-      </div>
-
-      <footer className="flex flex-col gap-2 border-t pt-3">
+      <footer className="mt-auto flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h3 className="font-mono text-xs font-medium text-foreground">On Arkiv</h3>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {expiry && (
+              <p
+                data-testid="detail-expiry"
+                className={`font-mono text-xs tnum ${expiry.urgent ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                {expiry.text === "expired" ? "expired" : `expires in ${expiry.text}`}
+              </p>
+            )}
+            {extendable && <KeepControl agentId={agentId} entity={entity} onKept={onKept} />}
+          </div>
+        </div>
         <ArkivEntityChip entityKey={entity.key} ownedByYou creator={entity.creator} />
         <p className="text-xs text-muted-foreground">
           The explorer shows only ciphertext. The subject and body above were decrypted in this tab with your key. Mail disappears from Arkiv after its lifetime unless you or the agent keep it.
@@ -308,22 +330,25 @@ function OtpPanel({ agentId, keys }: { agentId: string; keys: Keys }) {
   return (
     <div className="flex flex-col gap-4">
       {error && <ErrorAlert kind={error} />}
-      <ul className="flex flex-col gap-4" aria-label="One-time codes">
+      <ul className="flex w-full max-w-xl flex-col gap-4" aria-label="One-time codes">
         {rows.map((r) => (
-          <li key={r.entity.key} className="flex flex-col gap-2" data-testid="otp-item">
+          <li key={r.entity.key} className="overflow-hidden rounded-lg border bg-card" data-testid="otp-item">
             {r.dec?.ok && r.dec.mail.otp ? (
               <OtpCountdown
                 code={r.dec.mail.otp}
                 {...otpExpiry(r.entity)}
                 from={r.dec.mail.from ?? r.dec.mail.subject}
+                className="rounded-none border-0"
                 onRequestNew={() => void reload()}
               />
             ) : (
-              <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+              <div className="p-4 text-sm text-muted-foreground">
                 {r.dec?.ok ? "No code found in this message." : r.dec ? `Cannot decrypt: ${r.dec.reason}` : "Decrypting..."}
               </div>
             )}
-            <ArkivEntityChip entityKey={r.entity.key} ownedByYou creator={r.entity.creator} />
+            <div className="border-t bg-muted/30 px-4 py-2.5">
+              <ArkivEntityChip entityKey={r.entity.key} ownedByYou creator={r.entity.creator} />
+            </div>
           </li>
         ))}
       </ul>
