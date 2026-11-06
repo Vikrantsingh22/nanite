@@ -20,6 +20,8 @@ interface RawEnvelope {
   receivedAt?: number;
   threadId?: string;
   expiresAtBlock?: string;
+  expiresAt?: string | null;
+  extendable?: boolean;
   ciphertext?: string;
   wrappedKeys?: string;
   nonce?: string;
@@ -30,7 +32,7 @@ export interface LocalOptions {
   newId?: () => string;
 }
 
-export function createLocalBackend(client: Pick<NaniteClient, "listInbox" | "getEmail" | "waitForEmail" | "sendEmail" | "me">, key: LocalKey, opts: LocalOptions = {}): NaniteBackend {
+export function createLocalBackend(client: Pick<NaniteClient, "listInbox" | "getEmail" | "waitForEmail" | "sendEmail" | "me" | "extendEmail">, key: LocalKey, opts: LocalOptions = {}): NaniteBackend {
   const now = opts.now ?? (() => new Date());
   const newId = opts.newId ?? randomUUID;
   let me: { ensName: string; email: string } | undefined;
@@ -68,6 +70,8 @@ export function createLocalBackend(client: Pick<NaniteClient, "listInbox" | "get
         receivedAt: env.receivedAt,
         threadId: env.threadId,
         expiresAtBlock: env.expiresAtBlock,
+        expiresAt: env.expiresAt,
+        extendable: env.extendable,
         content_trust: "untrusted",
         notice: NOTICE,
         untrusted: { subject: plain.subject, body: plain.body },
@@ -128,6 +132,8 @@ export function createLocalBackend(client: Pick<NaniteClient, "listInbox" | "get
               otp,
               receivedAt: d.env.receivedAt,
               expiresAtBlock: d.env.expiresAtBlock,
+              expiresAt: d.env.expiresAt,
+              extendable: false,
               entityKey: d.env.entityKey,
               content_trust: "untrusted",
             },
@@ -136,6 +142,9 @@ export function createLocalBackend(client: Pick<NaniteClient, "listInbox" | "get
       }
       return err(404, "not_found");
     },
+
+    // Nothing to decrypt: the API moves the expiry. Same call as hosted mode.
+    extendEmail: (entityKey, days) => client.extendEmail(entityKey, days),
 
     async sendEmail(p) {
       const who = await ensureMe();

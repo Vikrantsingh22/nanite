@@ -23,10 +23,38 @@ async function connect(handler: (url: URL, init: RequestInit) => Response) {
 const text = (r: unknown) => ((r as { content: { text: string }[] }).content[0]!.text);
 
 describe("nanite MCP wrapper (hosted mode)", () => {
-  it("lists the five tools and flags untrusted content in descriptions", async () => {
+  it("extend_email posts {days} to /v1/emails/:key/extend with the token; refusals come back as isError", async () => {
+    const key = "0x" + "ef".repeat(32);
+    const { client, calls } = await connect((url) =>
+      url.searchParams.has("deny")
+        ? Response.json({ error: "x" }, { status: 409 })
+        : Response.json({ status: "extended", expiresAtBlock: "99", expiresAt: "2030-01-01T00:00:00.000Z" }),
+    );
+    const r = await client.callTool({ name: "extend_email", arguments: { entityKey: key, days: 30 } });
+    expect(JSON.parse(text(r))).toMatchObject({ status: "extended", expiresAtBlock: "99" });
+    expect(calls[0]).toMatchObject({ method: "POST", auth: `Bearer ${TOKEN}`, body: { days: 30 } });
+    expect(calls[0]!.url.pathname).toBe(`/v1/emails/${key}/extend`);
+    // schema bounds are enforced before any request is made
+    await expect(client.callTool({ name: "extend_email", arguments: { entityKey: key, days: 183 } })).resolves.toMatchObject({ isError: true });
+    await expect(client.callTool({ name: "extend_email", arguments: { entityKey: "nope", days: 7 } })).resolves.toMatchObject({ isError: true });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("maps extend refusals (otp_not_extendable, extend_disabled, extend_limit) to isError with the code", async () => {
+    const key = "0x" + "ef".repeat(32);
+    for (const [status, error] of [[409, "otp_not_extendable"], [403, "extend_disabled"], [429, "extend_limit"]] as const) {
+      const { client } = await connect(() => Response.json({ error }, { status }));
+      const r = await client.callTool({ name: "extend_email", arguments: { entityKey: key, days: 7 } });
+      expect(r.isError).toBe(true);
+      expect(JSON.parse(text(r))).toEqual({ error, status });
+    }
+  });
+
+  it("lists the six tools and flags untrusted content in descriptions", async () => {
     const { client } = await connect(() => new Response("{}"));
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["get_email", "get_latest_otp", "list_inbox", "send_email", "wait_for_email"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["extend_email", "get_email", "get_latest_otp", "list_inbox", "send_email", "wait_for_email"]);
+    expect(tools.find((t) => t.name === "extend_email")!.description).toMatch(/only mail the user would want to keep/i);
     for (const n of ["get_email", "get_latest_otp", "wait_for_email"]) {
       expect(tools.find((t) => t.name === n)!.description).toMatch(/UNTRUSTED/);
     }

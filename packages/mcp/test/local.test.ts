@@ -33,7 +33,7 @@ async function envelope(m: Stored) {
     : [{ keyId: keyId(userKp.publicKey), publicKey: userKp.publicKey }, { keyId: key.keyId, publicKey: key.publicKey }];
   const e = await encryptEmail({ subject: m.subject, body: m.body, ...(m.meta ? { meta: m.meta } : {}) }, recipients);
   const b64 = (u: Uint8Array) => Buffer.from(u).toString("base64");
-  return { entityKey: m.entityKey, type: m.type, receivedAt: m.receivedAt, threadId: "t".repeat(32), expiresAtBlock: "99", agentKeyId: key.keyId, keyIds: e.keyIds, ciphertext: b64(e.ciphertext), wrappedKeys: b64(e.wrappedKeys), nonce: b64(e.nonce), content_trust: "untrusted" };
+  return { entityKey: m.entityKey, type: m.type, receivedAt: m.receivedAt, threadId: "t".repeat(32), expiresAtBlock: "99", expiresAt: "2026-11-08T10:00:00.000Z", extendable: m.type !== "otp", agentKeyId: key.keyId, keyIds: e.keyIds, ciphertext: b64(e.ciphertext), wrappedKeys: b64(e.wrappedKeys), nonce: b64(e.nonce), content_trust: "untrusted" };
 }
 
 /** A fake API that only ever holds ciphertext, like the real one does for a self-custody agent. */
@@ -54,6 +54,13 @@ const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => 
     const after = Number(url.searchParams.get("since") ?? 0);
     const hit = store.find((s) => s.receivedAt > after);
     return hit ? Response.json(await envelope(hit)) : new Response(null, { status: 204 });
+  }
+  const x = /^\/v1\/emails\/(0x[0-9a-f]{64})\/extend$/.exec(url.pathname);
+  if (x) {
+    const hit = store.find((s) => s.entityKey === x[1]);
+    if (!hit) return Response.json({ error: "not_found" }, { status: 404 });
+    if (hit.type === "otp") return Response.json({ error: "otp_not_extendable" }, { status: 409 });
+    return Response.json({ status: "extended", expiresAtBlock: "500", expiresAt: "2026-12-01T00:00:00.000Z" });
   }
   const m = /^\/v1\/emails\/(0x[0-9a-f]{64})$/.exec(url.pathname);
   if (m) {
@@ -101,6 +108,30 @@ describe("local mode (self-hosted agent)", () => {
     const get = seen.find((s) => s.path === `/v1/emails/${key1}`)!;
     expect(get.raw).toBe("1");
     expect(get.auth).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("get_email shows the expiry; extend_email posts {days} without fetching or decrypting anything (works for self-hosted agents)", async () => {
+    store = [
+      { entityKey: key1, type: "conversation", receivedAt: 100, subject: "Receipt", body: "Keep me" },
+      { entityKey: key2, type: "otp", receivedAt: 200, subject: "Code", body: "Your code is 123456." },
+    ];
+    seen.length = 0;
+    const mcp = await connect();
+    expect(json(await mcp.callTool({ name: "get_email", arguments: { entityKey: key1 } }))).toMatchObject({
+      expiresAtBlock: "99",
+      expiresAt: "2026-11-08T10:00:00.000Z",
+      extendable: true,
+    });
+    seen.length = 0;
+    const r = json(await mcp.callTool({ name: "extend_email", arguments: { entityKey: key1, days: 90 } }));
+    expect(r).toEqual({ status: "extended", expiresAtBlock: "500", expiresAt: "2026-12-01T00:00:00.000Z" });
+    expect(seen).toEqual([{ path: `/v1/emails/${key1}/extend`, raw: null, auth: `Bearer ${TOKEN}`, post: { days: 90 } }]);
+    const otp = await mcp.callTool({ name: "extend_email", arguments: { entityKey: key2, days: 7 } });
+    expect(otp.isError).toBe(true);
+    expect(json(otp)).toEqual({ error: "otp_not_extendable", status: 409 });
+    const lt = json(await mcp.callTool({ name: "get_latest_otp", arguments: {} }));
+    expect(lt.extendable).toBe(false);
+    expect(lt.expiresAt).toBe("2026-11-08T10:00:00.000Z");
   });
 
   it("extracts an OTP locally when the meta carries none, and keeps meta.otp when it does", async () => {

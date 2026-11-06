@@ -63,6 +63,9 @@ export function createClient(cfg: ClientConfig) {
       get("/v1/emails/wait", { ...p, raw: p.raw ? 1 : undefined }, ((p.timeout ?? 30) + 10) * 1000),
     /** POST /v1/emails/send. Hosted agents send {to, subject, body, inReplyTo?}; self-hosted agents add the signed fields. */
     sendEmail: (p: Record<string, unknown>) => call("/v1/emails/send", {}, 30_000, p),
+    /** POST /v1/emails/:key/extend {days}: keep a conversation/sent email longer (no decryption involved). */
+    extendEmail: (entityKey: string, days: number) =>
+      call(`/v1/emails/${encodeURIComponent(entityKey)}/extend`, {}, 30_000, { days }),
     /** GET /v1/me: this agent's ENS name, mailbox address (the From) and custody. */
     me: () => get("/v1/me"),
   };
@@ -76,4 +79,5 @@ export interface NaniteBackend {
   latestOtp(): Promise<ApiResult>;
   waitForEmail(p: { type?: string; since?: number; timeout?: number }): Promise<ApiResult>;
   sendEmail(p: { to: string; subject: string; body: string; inReplyTo?: string }): Promise<ApiResult>;
+  extendEmail(entityKey: string, days: number): Promise<ApiResult>;
 }
