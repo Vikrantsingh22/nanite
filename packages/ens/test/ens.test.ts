@@ -14,9 +14,16 @@ import {
   USER_REGISTRY_GRANTS,
 } from "../src/roles.js";
 import {
+  DEFAULT_RETENTION,
   DEFAULT_SEND_LIMIT,
+  MAX_MAIL_TTL_HOURS,
+  MAX_OTP_TTL_MINUTES,
+  parseRetention,
+  parseRetentionPolicy,
   parseSendPolicy,
+  RETENTION_KEYS,
   SEND_KEYS,
+  validateRetentionInput,
   validateSendPolicyInput,
 } from "../src/policy.js";
 import {
@@ -243,6 +250,94 @@ describe("getAgentPermissions", () => {
     await expect(svc.getAgentPermissions("alice.nanitecom.eth", AGENT)).rejects.toThrow(/not <agent>/);
     await expect(svc.getAgentPermissions("x.y.example.eth", AGENT)).rejects.toThrow();
     await expect(svc.getAgentPermissions("bot.nobody.nanitecom.eth", AGENT)).rejects.toThrow(/no registry/);
+  });
+});
+
+describe("retention records (T3.8)", () => {
+  const KEYS = ["nanite.otp-ttl", "nanite.mail-ttl", "nanite.extend", "nanite.extend-limit"];
+  const NAME = "bot.alice.nanitecom.eth";
+
+  it("record names, defaults and ranges", () => {
+    expect(RETENTION_KEYS).toEqual({ otpTtl: "nanite.otp-ttl", mailTtl: "nanite.mail-ttl", extend: "nanite.extend", extendLimit: "nanite.extend-limit" });
+    expect(DEFAULT_RETENTION).toEqual({ otpTtlMinutes: 5, mailTtlHours: 48, extend: "on", extendLimit: 20 });
+    expect(MAX_MAIL_TTL_HOURS).toBe(4380);
+    expect(MAX_OTP_TTL_MINUTES).toBe(60);
+  });
+
+  it("parses valid values; missing or empty records are the defaults", () => {
+    expect(parseRetention({})).toEqual({ policy: DEFAULT_RETENTION, invalid: 0 });
+    expect(parseRetention({ otpTtl: " ", mailTtl: null, extend: "", extendLimit: undefined }).invalid).toBe(0);
+    expect(parseRetention({ otpTtl: "60", mailTtl: "4380", extend: "OFF", extendLimit: "0" })).toEqual({
+      policy: { otpTtlMinutes: 60, mailTtlHours: 4380, extend: "off", extendLimit: 0 },
+      invalid: 0,
+    });
+    expect(parseRetention({ otpTtl: "1", mailTtl: "1" }).policy).toMatchObject({ otpTtlMinutes: 1, mailTtlHours: 1 });
+  });
+
+  it("invalid values fall back to the defaults (never throw, never more permissive than the default) and are counted", () => {
+    const bad = parseRetention({ otpTtl: "0", mailTtl: "4381", extend: "maybe", extendLimit: "-3" });
+    expect(bad.policy).toEqual(DEFAULT_RETENTION);
+    expect(bad.invalid).toBe(4);
+    expect(parseRetention({ otpTtl: "61" }).policy.otpTtlMinutes).toBe(5);
+    expect(parseRetention({ otpTtl: "5 min", mailTtl: "1e3", extendLimit: "1.5" }).invalid).toBe(3);
+    expect(parseRetentionPolicy({ mailTtl: "99999999" }).mailTtlHours).toBe(48);
+  });
+
+  it("validateRetentionInput returns record strings for the fields given and throws on bad input", () => {
+    expect(validateRetentionInput({})).toEqual({});
+    expect(validateRetentionInput({ otpTtlMinutes: 10, mailTtlHours: 168, extend: "off", extendLimit: 5 })).toEqual({ otpTtl: "10", mailTtl: "168", extend: "off", extendLimit: "5" });
+    for (const bad of [{ otpTtlMinutes: 0 }, { otpTtlMinutes: 61 }, { otpTtlMinutes: 2.5 }, { mailTtlHours: 0 }, { mailTtlHours: 4381 }, { extend: "yes" }, { extendLimit: -1 }, { extendLimit: 1001 }]) {
+      expect(() => validateRetentionInput(bad), JSON.stringify(bad)).toThrow();
+    }
+  });
+
+  it("readRetentionPolicy reads the four records fresh and applies the defaults", async () => {
+    const fake = createFakeChain();
+    const records = new Map<string, string>();
+    const asked: string[] = [];
+    const reader = { getAddress: async () => AGENT, getText: async (n: string, k: string) => (asked.push(k), records.get(`${n}|${k}`) ?? null) };
+    const svc = createEnsService({ config, io: fake.io, reader, retryDelayMs: 0 });
+    expect(await svc.readRetentionPolicy(NAME)).toEqual({ ...DEFAULT_RETENTION, invalid: 0 });
+    expect(asked.sort()).toEqual([...KEYS].sort());
+    records.set(`${NAME}|nanite.otp-ttl`, "10");
+    records.set(`${NAME}|nanite.mail-ttl`, "bogus");
+    records.set(`${NAME}|nanite.extend`, "off");
+    expect(await svc.readRetentionPolicy(NAME)).toEqual({ otpTtlMinutes: 10, mailTtlHours: 48, extend: "off", extendLimit: 20, invalid: 1 });
+    reader.getText = async () => { throw new Error("rpc"); };
+    await expect(svc.readRetentionPolicy(NAME)).rejects.toThrow(); // callers (the API) turn this into the defaults
+  });
+
+  it("setRetentionPolicy: operator-signed setText on the live resolver for the given fields only; rejects bad input before sending", async () => {
+    const { fake, svc } = setup();
+    await svc.createUserName({ username: "alice", userWallet: USER });
+    const a = await svc.createAgentName(agentArgs);
+    const n = fake.sent.length;
+    const r = await svc.setRetentionPolicy({ username: "alice", agentLabel: "bot", mailTtlHours: 168, extend: "off" });
+    expect(Object.keys(r.txHashes)).toEqual(["set:nanite.mail-ttl", "set:nanite.extend"]);
+    const writes = fake.sent.slice(n);
+    expect(writes.map((w) => [w.fn, w.address, w.args[1], w.args[2]])).toEqual([
+      ["setText", a.resolver, "nanite.mail-ttl", "168"],
+      ["setText", a.resolver, "nanite.extend", "off"],
+    ]);
+    const all = await svc.setRetentionPolicy({ username: "alice", agentLabel: "bot", otpTtlMinutes: 3, mailTtlHours: 4380, extend: "on", extendLimit: 9 });
+    expect(Object.keys(all.txHashes)).toEqual(["set:nanite.otp-ttl", "set:nanite.mail-ttl", "set:nanite.extend", "set:nanite.extend-limit"]);
+    const m = fake.sent.length;
+    await expect(svc.setRetentionPolicy({ username: "alice", agentLabel: "bot", mailTtlHours: 99999 })).rejects.toThrow();
+    await expect(svc.setRetentionPolicy({ username: "alice", agentLabel: "bot", extend: "sometimes" })).rejects.toThrow();
+    expect(fake.sent.length).toBe(m);
+  });
+
+  it("the agent wallet can write none of the four records (only agent-context); the operator and the user can write all of them", async () => {
+    const { svc } = setup();
+    await svc.createUserName({ username: "alice", userWallet: USER });
+    await svc.createAgentName(agentArgs);
+    const agent = await svc.getAgentPermissions(NAME, AGENT);
+    for (const k of KEYS) expect(agent.text[k], k).toBe(false);
+    for (const k of Object.values(RETENTION_KEYS)) expect((AGENT_SETTER_KEYS as readonly string[]).includes(k)).toBe(false);
+    for (const who of [OPERATOR, USER]) {
+      const p = await svc.getAgentPermissions(NAME, who);
+      for (const k of KEYS) expect(p.text[k], `${who} ${k}`).toBe(true);
+    }
   });
 });
 
