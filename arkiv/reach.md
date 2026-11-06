@@ -35,7 +35,7 @@ Evidence from production, 2026-11-07: a self-hosted agent (`vault.vikrantsingh.n
    ```
    On 2026-11-06 it returned 16 entities at block 285,197. [schema.md](schema.md) explains every field.
 2. **The full product, locally in Docker** (or just use the live app above). Follow the root [README](../README.md), then run `docker compose up -d db api web`. The web app opens at http://localhost:3000. A seed script creates a demo user with two agents and invented mail ([LIVE-E2E.md](../apps/api/LIVE-E2E.md), "Demo seed").
-3. **Connect an agent through MCP.** `packages/mcp` has six tools: `list_inbox`, `get_email`, `get_latest_otp`, `wait_for_email`, `send_email`, `extend_email`. It runs hosted (`/mcp` on the live API) or locally over stdio. On 2026-11-06 we tested both modes against our local stack. A few paths have only unit tests ([docs/mcp.md](../docs/mcp.md), section 10). `nanite-mcp` is not on npm yet, so run it from a checkout.
+3. **Connect an agent through MCP.** `packages/mcp` has seven tools: `whoami`, `list_inbox`, `get_email`, `get_latest_otp`, `wait_for_email`, `send_email`, `extend_email`. It runs hosted (`/mcp` on the live API) or locally over stdio. On 2026-11-06 we tested both modes against our local stack. A few paths have only unit tests ([docs/mcp.md](../docs/mcp.md), section 10). `nanite-mcp` is not on npm yet, so run it from a checkout.
 4. **Run a full agent demo.** [demo/](../demo/README.md) has two Claude Code kits: an agent that signs up for Reddit and reads its own verification code, and a self-hosted agent that decrypts and signs on its own machine.
 5. **Read how it all works.** [docs/how-it-works.md](../docs/how-it-works.md); section 12 covers Arkiv.
 

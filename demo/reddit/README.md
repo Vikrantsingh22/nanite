@@ -47,6 +47,17 @@ claude mcp add --transport http --scope local playwright http://localhost:8931/m
 
 Plainly: your shell expands `${NANITE_AGENT_TOKEN}` before Claude Code runs (the docs do not describe any expansion at add time), so the literal token is stored in `~/.claude.json` under this project's path (`--scope local`, the default). That file is in your home directory, not in the repo, so nothing committed contains the token. It is the only robust variant; the committed `.mcp.json` keeps the placeholder only. A local-scope server takes precedence over a same-named project one. Remove it after the demo: `claude mcp remove nanite` (and rotate the token in the app).
 
+Note: `--scope local` servers are stored per repository, so only one `nanite` server can exist at a time. To switch demos, run `claude mcp remove nanite -s local` and then add the other one:
+
+```
+# reddit demo (hosted)
+claude mcp add --transport http --scope local nanite https://api.nanite.itsvikrant.tech/mcp \
+  --header "Authorization: Bearer ${NANITE_AGENT_TOKEN}"
+
+# self-hosted demo (local kit)
+claude mcp add nanite --scope local -- docker compose --env-file ../.env -f ../../docker-compose.yml run --rm -i -T kit
+```
+
 ## 4. Start the headed browser and Playwright MCP
 
 ```

@@ -97,7 +97,7 @@ npm workspaces monorepo (`apps/*`, `packages/*`), everything runs in Docker.
 | [packages/ens](../packages/ens/src) | ENSv2 service on viem: user and agent name creation, role constants, send/retention policy parse and validate, signer and endpoint records, revoke, resolution, permission check, signature verifier. |
 | [packages/arkiv](../packages/arkiv/src) | `nanite.email.v1` schema, server writer (single-flight queue, create + transfer batch, extend), creator-pinned reader. |
 | [packages/db](../packages/db/src) | Drizzle schema, 4 migrations, queries (routing, auth, agent API, outbound limits under advisory locks, domains). |
-| [packages/mcp](../packages/mcp/src) | The six MCP tools, the `/v1` HTTP client, the local (self-hosted) backend that decrypts and signs on the agent's machine, the key file, the `nanite-mcp` CLI (`keygen`, `rotate-signer`, stdio server). |
+| [packages/mcp](../packages/mcp/src) | The seven MCP tools, the `/v1` HTTP client, the local (self-hosted) backend that decrypts and signs on the agent's machine, the key file, the `nanite-mcp` CLI (`keygen`, `rotate-signer`, stdio server). |
 | [config](../config) | `sepolia.json` (ENSv2 contract addresses), `roles.json` (role bit values). |
 | [contracts/abi](../contracts/abi) | ABIs from `ensdomains/contracts-v2` at commit `07e55a05`. |
 | [signer](../signer) | Local page that signs owner transactions for `nanitecom.eth` in the browser wallet (the owner key never touches a script). |
@@ -879,12 +879,13 @@ Last recorded run: 16 matches at block 285,197; each row shows `owner` (a user w
 | `POST /v1/emails/:key/extend` | section 11 |
 | `POST /mcp` | hosted MCP (Streamable HTTP) |
 
-### 13.2 The six MCP tools
+### 13.2 The seven MCP tools
 
 [server.ts](../packages/mcp/src/server.ts):
 
 | Tool | Params | Notes |
 | --- | --- | --- |
+| `whoami` | none | `{email, ensName, custody}` from `GET /v1/me` |
 | `list_inbox` | `type?` (otp, conversation, sent), `before?`, `after?`, `limit?` 1..100, `cursor?` | metadata only |
 | `get_email` | `entityKey` | content under `untrusted` |
 | `get_latest_otp` | none | |

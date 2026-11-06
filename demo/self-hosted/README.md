@@ -57,6 +57,17 @@ Approve the project server from `.mcp.json` on first start. If Claude Code does 
 claude mcp add nanite --scope local -- docker compose --env-file ../.env -f ../../docker-compose.yml run --rm -i -T kit
 ```
 
+Note: `--scope local` servers are stored per repository, so only one `nanite` server can exist at a time. To switch demos, run `claude mcp remove nanite -s local` and then add the other one:
+
+```
+# reddit demo (hosted)
+claude mcp add --transport http --scope local nanite https://api.nanite.itsvikrant.tech/mcp \
+  --header "Authorization: Bearer ${NANITE_AGENT_TOKEN}"
+
+# self-hosted demo (local kit)
+claude mcp add nanite --scope local -- docker compose --env-file ../.env -f ../../docker-compose.yml run --rm -i -T kit
+```
+
 The `.mcp.json` launches the kit like this (`--env-file ../.env` loads `demo/.env`, so no `set -a` is needed):
 
 ```

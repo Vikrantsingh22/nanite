@@ -1,6 +1,6 @@
 # Nanite MCP: connect your agent
 
-Nanite gives an AI agent its own email address (`name.owner.nanitecom.eth` resolves to `name@<mail domain>`). The agent reads and sends mail through six MCP tools. This page is everything an outside developer needs to connect an agent. It describes the code in this repository; where something was only written from documentation and not run, it says so (section 10).
+Nanite gives an AI agent its own email address (`name.owner.nanitecom.eth` resolves to `name@<mail domain>`). The agent reads and sends mail through seven MCP tools. This page is everything an outside developer needs to connect an agent. It describes the code in this repository; where something was only written from documentation and not run, it says so (section 10).
 
 Placeholders used below: `https://api.example.com` is your Nanite API (`API_PUBLIC_URL`; the hosted instance is `https://api.nanite.itsvikrant.tech`, so the hosted MCP URL is `https://api.nanite.itsvikrant.tech/mcp`; `http://localhost:4000` on a local dev stack), and `NANITE_AGENT_TOKEN` is an environment variable holding the agent token.
 
@@ -24,7 +24,7 @@ Trust model:
 | Where do private keys live? | Server, sealed | Only in your key file; the server never holds them |
 | Setup effort | Copy a token | Generate keys, register public values, run the kit |
 
-Both modes expose the same six tools and the same rules (send policy, limits, retention).
+Both modes expose the same seven tools and the same rules (send policy, limits, retention).
 
 ## 2. Get a token
 
@@ -208,6 +208,16 @@ Anything that comes from an email is wrapped: `content_trust: "untrusted"`, a `n
 
 Entity keys (`entityKey`) are `0x` followed by 64 hex characters. Times are unix seconds (`receivedAt`) or ISO strings (`expiresAt`).
 
+### whoami
+
+No arguments. Your own identity: the email address to give out (sign-ups, replies), your ENS name and who holds your key. Call this first if you need your address. It calls `GET /v1/me` and reads no chain data.
+
+```json
+{ "email": "bot@mail.example.com", "ensName": "bot.alice.nanitecom.eth", "custody": "nanite" }
+```
+
+`custody` is `nanite` (hosted keys) or `self` (you hold the keys). `email` is `null` if the agent has no mailbox yet.
+
 ### list_inbox
 
 Metadata only, newest first. No email content.
@@ -278,6 +288,8 @@ Refusals come back as tool errors, for example `{"error":"policy_reply_only","st
 Errors: `409 otp_not_extendable` (codes expire by design), `403 extend_disabled` (the owner turned `nanite.extend` off), `429 extend_limit` (agent extensions per UTC day, default 20, `nanite.extend-limit`), `404 not_found`. The owner pays for each extension, so extend only mail the user wants to keep.
 
 ## 5. Recipes
+
+Start by calling `whoami`: it returns the email address you give to a site or a person.
 
 ### Sign up somewhere and read the OTP
 
@@ -428,7 +440,7 @@ Run on 2026-11-06 against the local dev stack (API from this repo, real Resend i
 | --- | --- |
 | MCP Inspector 1.0.3 CLI, hosted HTTP: `tools/list`, `list_inbox`, policy-denied `send_email` (clean tool error) | PASS |
 | MCP Inspector 1.0.3 CLI, stdio local mode (key file), `list_inbox` | PASS |
-| TypeScript SDK 1.32.2 client, hosted HTTP: all six tools | PASS |
+| TypeScript SDK 1.32.2 client, hosted HTTP: all six tools (before `whoami` was added) | PASS |
 | TypeScript SDK client, stdio, hosted-stdio and local mode | PASS |
 | `wait_for_email`: timeout path (3 s) and arrival path (real inbound mail, arrived in about 5 s) | PASS |
 | `get_latest_otp` with a real mail "Your verification code is ..." (hosted and local decrypt) | PASS |

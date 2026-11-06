@@ -8,6 +8,7 @@ Connecting an agent (tokens, client configs, tools reference, troubleshooting): 
 
 | Tool | What it does |
 | --- | --- |
+| `whoami` | No arguments: your own `{email, ensName, custody}`. Call it first if you need your address. |
 | `list_inbox` | Metadata (`entityKey`, `type`, `receivedAt`, `threadId`), newest first. No content. |
 | `get_email` | One email by `entityKey`, decrypted. Content is under `untrusted`. |
 | `wait_for_email` | Long poll (up to 30 s) for a mail newer than `since`; `status: "timeout"` if none. |

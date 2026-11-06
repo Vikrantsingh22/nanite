@@ -245,7 +245,7 @@ Success: `{"status":"sent","providerMessageId":"...","entityKey":"0x...","signat
 
 ## 8. Using the agent: MCP
 
-Six tools in every mode: `list_inbox` (metadata), `get_email`, `wait_for_email`, `get_latest_otp`, `send_email {to, subject, body, inReplyTo?}` and `extend_email {entityKey, days}`. Content comes back under `untrusted` with `content_trust: "untrusted"`.
+Seven tools in every mode: `whoami` (your own address), `list_inbox` (metadata), `get_email`, `wait_for_email`, `get_latest_otp`, `send_email {to, subject, body, inReplyTo?}` and `extend_email {entityKey, days}`. Content comes back under `untrusted` with `content_trust: "untrusted"`.
 
 **8.1 Hosted endpoint (hosted agents only).** The API serves Streamable HTTP MCP at `$API/mcp` with the agent token as bearer. Claude Code:
 ```
