@@ -1,0 +1,81 @@
+# Production stack for the Lightsail VM: Postgres + API + Caddy. Copy to /opt/nanite/docker-compose.yml.
+# Needs, next to it: .env (from .env.production.example, mode 600) and Caddyfile.
+# GHCR_OWNER (lower-case GitHub user) and POSTGRES_PASSWORD come from that .env. API_TAG defaults to latest.
+#
+# The CADDYFILE / API_IMAGE / *_BIND / *_PORT variables exist only so the same file can be tested locally
+# (docs/deployment.md, "Local proof"); on the server leave them unset.
+
+name: nanite
+
+services:
+  db:
+    image: postgres:17.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nanite
+      POSTGRES_DB: nanite
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=30
+      - -c
+      - effective_cache_size=512MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [internal]
+    # No published port: only the api container reaches Postgres, over the internal network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nanite -d nanite"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 450m
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .env}/nanite-api:${API_TAG:-latest}}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Forced here so a mistake in .env cannot weaken production.
+      NODE_ENV: production
+      PORT: "4000"
+      TRUST_PROXY: "1" # Caddy is the only hop in front of the api
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [internal]
+    expose: ["4000"]
+    mem_limit: 700m
+    logging: *logging
+
+  caddy:
+    image: caddy:2.11.6
+    restart: unless-stopped
+    ports:
+      - "${HTTP_BIND:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${HTTPS_BIND:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${CADDYFILE:-./Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    networks: [internal]
+    mem_limit: 150m
+    logging: *logging
+
+networks:
+  internal:
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

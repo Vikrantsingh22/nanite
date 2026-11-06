@@ -1,0 +1,32 @@
+# Production reverse proxy. Caddy gets and renews the Let's Encrypt certificate by itself (HTTP-01 on port 80),
+# so DNS for api.nanite.itsvikrant.tech must point at this VM ("DNS only" in Cloudflare) before the first request.
+api.nanite.itsvikrant.tech {
+	encode zstd gzip
+
+	# Webhook and send bodies are far smaller than this.
+	request_body {
+		max_size 1MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Access log to stdout: no query strings, no request headers (Authorization, Cookie), no Set-Cookie.
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp \?.* ""
+				request>headers delete
+				resp_headers>Set-Cookie delete
+			}
+		}
+	}
+
+	reverse_proxy api:4000
+}

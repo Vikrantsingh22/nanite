@@ -1,0 +1,36 @@
+# LOCAL TEST ONLY (docs/deployment.md, "Local proof"): same as Caddyfile but on localhost with Caddy's internal CA.
+# Use with CADDYFILE=./Caddyfile.local. Clients need -k (the internal CA is not trusted by the system).
+{
+	# the test publishes HTTPS on a non-standard port
+	auto_https disable_redirects
+}
+
+localhost {
+	tls internal
+	encode zstd gzip
+
+	request_body {
+		max_size 1MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp \?.* ""
+				request>headers delete
+				resp_headers>Set-Cookie delete
+			}
+		}
+	}
+
+	reverse_proxy api:4000
+}
