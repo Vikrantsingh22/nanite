@@ -1,4 +1,5 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { ready } from "@nanite/crypto";
 import { runKeygen, runRotateSigner } from "./cli.js";
 import { createClient, type NaniteBackend } from "./client.js";
 import { loadKeyFile } from "./keyfile.js";
@@ -6,6 +7,8 @@ import { createLocalBackend } from "./local.js";
 import { createNaniteMcpServer } from "./server.js";
 
 const [cmd, ...rest] = process.argv.slice(2);
+
+await ready(); // libsodium must be initialised before any @nanite/crypto call (keygen, rotate-signer, key file load, decrypt)
 
 if (cmd === "keygen") {
   process.exit(await runKeygen(rest, { out: (l) => console.log(l), env: process.env }));
