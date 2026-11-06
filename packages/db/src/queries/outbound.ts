@@ -85,6 +85,8 @@ export type ReserveSendResult =
 export async function reserveSend(
   db: Db,
   input: {
+    /** Use this uuid as the send_log id (self-signed sends: the signed message id; a reused id violates the primary key). */
+    id?: string;
     agentId: string;
     recipientHash: string;
     agentLimit: number;
@@ -114,6 +116,7 @@ export async function reserveSend(
       if (c.sent + c.received >= input.quota) return deny("quota_exhausted", { sent: c.sent, received: c.received, quota: input.quota });
     }
     const row = await insertSendLog(tx, {
+      ...(input.id ? { id: input.id } : {}),
       agentId: input.agentId,
       recipientHash: input.recipientHash,
       decision: "allowed",
@@ -125,11 +128,12 @@ export async function reserveSend(
 
 export async function insertSendLog(
   db: Queryable,
-  row: { agentId: string; recipientHash: string; decision: "allowed" | "denied"; policySnapshot: unknown },
+  row: { id?: string; agentId: string; recipientHash: string; decision: "allowed" | "denied"; policySnapshot: unknown },
 ) {
   const [r] = await db
     .insert(sendLog)
     .values({
+      ...(row.id ? { id: row.id } : {}),
       agentId: row.agentId,
       recipientHash: row.recipientHash,
       policyDecision: row.decision,
