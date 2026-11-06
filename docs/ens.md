@@ -87,4 +87,4 @@ Read-only lookups run on 2026-11-06 through UniversalResolverV2 (inside Docker, 
 
 ## Surprises (ENSv2 friction)
 
-Full list in `arkiv/friction.md` (section "ENS / tooling friction"). The ones that shaped the design: setter functions take a DNS-encoded name first (`setText(bytes,string,string)`); `grantSetterRoles` takes full setter calldata and scopes by key only; no parent-expiry check; `register()` grants any role bitmap with no caller-side check; the resolver skips role checks during `initialize`.
+Full list in [arkiv/build-notes.md](../arkiv/build-notes.md) (section on ENS v2). The ones that shaped the design: setter functions take a DNS-encoded name first (`setText(bytes,string,string)`); `grantSetterRoles` takes full setter calldata and scopes by key only; no parent-expiry check; `register()` grants any role bitmap with no caller-side check; the resolver skips role checks during `initialize`.

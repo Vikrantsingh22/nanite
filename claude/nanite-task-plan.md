@@ -27,11 +27,11 @@ Update this table at the end of every task (Todo / In progress / Done / Cut).
 | T3.4 | Agent API, tokens, MCP | 3h | Done |
 | T3.5 | Outbound send, gated by ENS policy | 2.5h | Done (signing B + threading + quota; dashboard toggle done) |
 | T3.6 | Custom domain onboarding (enter domain → DNS records → auto verify) | 3h | Done (optional; fakes; live user-domain test pending) |
-| T3.7 | Self-hosted agent kit + MCP fixes | 4h | Done (fakes only; needs review; live self-hosted check + `update-agent-endpoints --apply` at deploy pending) |
+| T3.7 | Self-hosted agent kit + MCP fixes | 4h | Done (live-verified: local decrypt + self-signed reply valid on ENS; bin.ts ready() fix uncommitted) |
 | T3.8 | Email expiry control (OTP ttl, 2-day default, extend_email, Keep) | 3h | Done (fakes only; needs review; live check pending) |
 | T4.1 | OTP expiry and demo data | 1.5h | Done (live: OTP gone at its expiry block; seed-demo.ts) |
 | T4.2 | Arkiv docs and README | 2h | Mostly done (AI-use note + web claims to confirm after T3.3) |
-| T4.3 | Deploy and live link | 1.5h | Todo |
+| T4.3 | Deploy and live link | 1.5h | Running (plan in docs/deployment.md; X1 building prod files) |
 | T4.4 | Video, QA, submission | 2h | Todo |
 | S1 | Stretch: Swarm for attachments | 3h | Only if time remains |
 | S2 | Stretch: self-hosted agent container | 3h | Only if time remains |
