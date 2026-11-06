@@ -4,7 +4,7 @@ import { withOperatorLock } from "../operator-lock.js";
 import type { AgentChain, AgentEvent, AgentStepId } from "./chain.js";
 
 export type StepStatus = "pending" | "active" | "done" | "skipped";
-export type AgentJobKind = "create" | "policy" | "revoke" | "signer";
+export type AgentJobKind = "create" | "policy" | "retention" | "revoke" | "signer";
 
 export interface AgentStep {
   id: AgentStepId;
@@ -27,6 +27,7 @@ const STEPS: Record<AgentJobKind, Array<[AgentStepId, string]>> = {
     ["grant-keys", "Grant the agent its one writable record"],
   ],
   policy: [["set-send-policy", "Write the send policy to ENS"]],
+  retention: [["set-retention", "Write the retention settings to ENS"]],
   revoke: [["revoke-keys", "Remove the agent's write access"]],
   signer: [["publish-signer", "Publish the mail-signing key"]],
 };
@@ -55,6 +56,14 @@ export interface PolicyArgs {
   policy: string;
   allow?: string[] | undefined;
   limit?: number | undefined;
+}
+export interface RetentionArgs {
+  username: string;
+  agentLabel: string;
+  otpTtlMinutes?: number | undefined;
+  mailTtlHours?: number | undefined;
+  extend?: string | undefined;
+  extendLimit?: number | undefined;
 }
 export interface RevokeArgs {
   username: string;
@@ -143,6 +152,21 @@ export function createAgentJobRunner(db: Db, chain: AgentChain, log: (line: stri
     startPolicy(agentId: string, a: PolicyArgs) {
       return enqueue(agentId, "policy", async (onEvent) => {
         await chain.setSendPolicy(a, onEvent);
+      });
+    },
+    startRetention(agentId: string, a: RetentionArgs) {
+      return enqueue(agentId, "retention", async (onEvent) => {
+        await chain.setRetentionPolicy(
+          {
+            username: a.username,
+            agentLabel: a.agentLabel,
+            ...(a.otpTtlMinutes !== undefined ? { otpTtlMinutes: a.otpTtlMinutes } : {}),
+            ...(a.mailTtlHours !== undefined ? { mailTtlHours: a.mailTtlHours } : {}),
+            ...(a.extend !== undefined ? { extend: a.extend } : {}),
+            ...(a.extendLimit !== undefined ? { extendLimit: a.extendLimit } : {}),
+          },
+          onEvent,
+        );
       });
     },
     startRevoke(agentId: string, a: RevokeArgs) {

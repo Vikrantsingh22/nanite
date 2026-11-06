@@ -24,13 +24,18 @@ export function createRealArkivWriter(config: RealArkivWriterConfig) {
     ...(config.rpcUrl ? { rpcUrl: config.rpcUrl } : {}),
   });
   const port: ArkivWriterPort = {
-    async writeEmail({ fields, ownerWallet, permissionlessExtension }) {
+    async writeEmail({ fields, ownerWallet, permissionlessExtension, expiresInSeconds }) {
       const r = await writer.writeEmail({
         fields: { ...fields, ownerId: fields.ownerId as Address },
         owner: ownerWallet as Address,
         permissionlessExtension,
+        ...(expiresInSeconds !== undefined ? { expiresIn: expiresInSeconds } : {}),
       });
       return { entityKey: r.entityKey, txHash: r.txHash };
+    },
+    async extendEmail(entityKey, seconds) {
+      const r = await writer.extendEmail(entityKey as Hex, { expiresIn: seconds });
+      return { txHash: r.txHash, expiresAtBlock: r.expiresAtBlock ?? null };
     },
   };
   /** `operatorAddress` and `reader` (creator-pinned) are for dev tooling and tests. */

@@ -23,7 +23,8 @@ import {
   type Db,
 } from "@nanite/db";
 import { signWithSealedSigner, unsealAgentPrivateKey } from "../agent-api/keys.js";
-import { canonicalSendStringV3, SIG_VERSION, verifyNaniteSignature, type SendPolicy } from "@nanite/ens";
+import { canonicalSendStringV3, DEFAULT_RETENTION, SIG_VERSION, verifyNaniteSignature, type SendPolicy } from "@nanite/ens";
+import { lifetimeSeconds, type RetentionSource } from "../retention.js";
 import { createHmac } from "node:crypto";
 import { threadIdForRoot } from "../inbound/classify.js";
 import type { ArkivWriterPort } from "../arkiv/port.js";
@@ -76,6 +77,8 @@ export interface OutboundDeps {
   now?: () => Date;
   /** Pause before the single provider retry (tests inject a recorder). */
   sleep?: ((ms: number) => Promise<void>) | undefined;
+  /** Per-agent retention for the sent copy's lifetime. Absent: the default (48 h). */
+  retention?: RetentionSource | undefined;
   /** Structured log sink for config errors (fixed codes and Resend error names only, never content). */
   log?: ((fields: Record<string, unknown>) => void) | undefined;
 }
@@ -489,6 +492,8 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
         ...(thread && thread !== "unavailable" ? { inReplyTo: thread.inReplyTo, references: thread.references } : {}),
       };
       const enc = await encryptEmail({ subject, body, meta }, recipients);
+      // Sent copies live as long as the agent's ENS `nanite.mail-ttl` (default 48 h); defaults when ENS cannot be read.
+      const sentRetention = deps.retention ? await deps.retention.get(ctx.ensName) : DEFAULT_RETENTION;
       // Same threadId an inbound reply will get (inbound root = first References id, else In-Reply-To): the root
       // of the chain this copy belongs to. Without a provider id nothing can reference this mail, so the copy
       // keeps its own opaque thread.
@@ -511,6 +516,7 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
         },
         ownerWallet: ctx.userWalletAddress,
         permissionlessExtension: true,
+        expiresInSeconds: lifetimeSeconds("sent", sentRetention),
       });
       entityKey = res.entityKey;
       await finishSentLedger(db, ledger.id, { status: "confirmed", entityKey: res.entityKey, txHash: res.txHash });

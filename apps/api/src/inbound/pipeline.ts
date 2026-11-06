@@ -36,7 +36,9 @@ import {
   webhookEvents,
   type Db,
 } from "@nanite/db";
+import { DEFAULT_RETENTION } from "@nanite/ens";
 import type { ArkivWriterPort } from "../arkiv/port.js";
+import { lifetimeSeconds, type RetentionSource } from "../retention.js";
 import type { InboundEvent, MailProvider } from "../mail/provider.js";
 import { ProviderError } from "../mail/resend.js";
 import type { InboundProcessor } from "./processor.js";
@@ -51,6 +53,8 @@ export interface InboundDeps {
   /** DAILY_MAIL_QUOTA: only used to log a warning (counts) when exceeded; inbound is always stored. */
   dailyMailQuota?: number | undefined;
   now?: () => Date;
+  /** Per-agent retention (ENS nanite.otp-ttl / nanite.mail-ttl), cached <= 60 s. Absent: the defaults (OTP 5 min, mail 48 h). */
+  retention?: RetentionSource | undefined;
   /** Background processor used by POST /webhooks/resend (the route creates one when absent). */
   processor?: InboundProcessor | undefined;
   /** Dev/test only (WEBHOOK_SYNC=1): the webhook request waits for the whole pipeline, like before the async split. */
@@ -296,6 +300,8 @@ export async function processInboundEventById(
           const ledgerId = claimedRow[0]!.id;
 
           try {
+            // Lifetime from the agent's ENS retention records (cached <= 60 s; defaults when ENS cannot be read).
+            const retention = deps.retention ? await deps.retention.get(route.agentEnsName) : DEFAULT_RETENTION;
             const res = await deps.arkiv.writeEmail({
               fields: {
                 agentId: route.agentEnsName,
@@ -311,6 +317,7 @@ export async function processInboundEventById(
               },
               ownerWallet: route.userWalletAddress,
               permissionlessExtension: cls.type !== "otp",
+              expiresInSeconds: lifetimeSeconds(cls.type, retention),
             });
             await db
               .update(arkivWrites)

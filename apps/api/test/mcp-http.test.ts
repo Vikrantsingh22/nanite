@@ -152,7 +152,7 @@ describe("POST /mcp", () => {
   it("lists the five tools", async () => {
     const c = await mcpClient(makeApp(), A.token);
     const { tools } = await c.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["get_email", "get_latest_otp", "list_inbox", "send_email", "wait_for_email"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["extend_email", "get_email", "get_latest_otp", "list_inbox", "send_email", "wait_for_email"]);
     await c.close();
   });
 

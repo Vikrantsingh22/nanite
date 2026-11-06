@@ -18,6 +18,7 @@ import { createDomainVerifier } from "./domains/verifier.js";
 import { createResendProvider } from "./mail/resend.js";
 import type { InboundDeps } from "./inbound/pipeline.js";
 import { createInboundProcessor } from "./inbound/processor.js";
+import { createRetentionSource } from "./retention.js";
 
 let env;
 try {
@@ -70,6 +71,22 @@ const devInbox: DevInbox | undefined =
     : undefined;
 if (devInbox) console.warn("DEV_ROUTES=1: /internal/dev/inbox/:agentEns is enabled (dev only)");
 
+// Retention (T3.8): per-agent ENS records (OTP / mail lifetime, extend permission), read-only ENS access. Cached <= 60 s
+// for writes; an ENS failure falls back to the defaults and never blocks mail.
+let retentionEns: ReturnType<typeof createEnsServiceFromConfig> | undefined;
+const retention = createRetentionSource({
+  read: (name) => {
+    retentionEns ??= createEnsServiceFromConfig(
+      loadEnsConfig({
+        OPERATOR_PRIVATE_KEY: `0x${"11".repeat(32)}`, // read-only: this key is never used to sign
+        SEPOLIA_RPC_URL: env.sepoliaRpcUrl ?? "https://ethereum-sepolia-rpc.publicnode.com",
+      }),
+    );
+    return retentionEns.readRetentionPolicy(name);
+  },
+  log: (f) => console.log(JSON.stringify({ level: "warn", ...f })),
+});
+
 // Outbound send (T3.5): needs the creator-pinned reader, the sender-hash secret and a provider.
 // FAKE_RESEND_SEND=1 (non-production) records sends in memory instead of calling Resend.
 const fakeSend = process.env.FAKE_RESEND_SEND === "1" && process.env.NODE_ENV !== "production";
@@ -97,6 +114,7 @@ const outbound =
           senderHashSecret: env.senderHashSecret,
           sharedMailDomain,
           dailyMailQuota: env.dailyMailQuota,
+          retention,
           log: (fields: Record<string, unknown>) => console.error(JSON.stringify({ level: "error", ...fields })),
         };
       })()
@@ -125,6 +143,7 @@ const inboundDeps: InboundDeps | undefined =
         arkiv: realArkiv ? realArkiv.port : new InMemoryArkivWriter(),
         senderHashSecret: env.senderHashSecret,
         dailyMailQuota: env.dailyMailQuota,
+        retention,
         sync: syncWebhook,
       }
     : undefined;
@@ -194,10 +213,22 @@ const app = createApp({
     dailyMailQuota: env.dailyMailQuota,
   },
   ...(realArkiv
-    ? { mail: { reader: realArkiv.reader, blockNumber: () => realArkiv.reader.client.getBlockNumber() } }
+    ? { mail: { reader: realArkiv.reader, blockNumber: () => realArkiv.reader.client.getBlockNumber(), arkiv: realArkiv.port } }
     : {}),
   // Agent API needs the creator-pinned reader, so it is mounted only with the real Arkiv config.
-  ...(realArkiv ? { v1: { db: handle.db, reader: realArkiv.reader, masterKey: env.naniteMasterKey, outbound } } : {}),
+  ...(realArkiv
+    ? {
+        v1: {
+          db: handle.db,
+          reader: realArkiv.reader,
+          masterKey: env.naniteMasterKey,
+          outbound,
+          blockNumber: () => realArkiv.reader.client.getBlockNumber(),
+          arkiv: realArkiv.port,
+          retention,
+        },
+      }
+    : {}),
 });
 
 const server = serve({ fetch: app.fetch, port: env.port, hostname: "0.0.0.0" }, (info) => {

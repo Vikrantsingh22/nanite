@@ -17,6 +17,9 @@ import { randomBytes } from "node:crypto";
 import { unsealAgentPrivateKey } from "../agent-api/keys.js";
 import { createRateLimiter, type RateLimiter } from "../agent-api/rate-limit.js";
 import { verifyAgentToken, type AuthedAgent } from "../agent-api/tokens.js";
+import type { ArkivWriterPort } from "../arkiv/port.js";
+import { expiryFields, extendEmailEntity } from "../extend/extend.js";
+import type { RetentionSource } from "../retention.js";
 import { MAX_SEND_BODY_BYTES, sendEmail, type OutboundDeps } from "../outbound/send.js";
 
 export type AgentReader = Pick<ArkivReader, "listInbox" | "latestOtp" | "getEmail">;
@@ -32,6 +35,12 @@ export interface V1Deps {
   waitPollMs?: number;
   /** Outbound send (POST /v1/emails/send). When absent the route answers 503 send_unavailable. */
   outbound?: Omit<OutboundDeps, "db"> | undefined;
+  /** Current Arkiv block (2 s blocks): turns `$expiresAt` into an estimated ISO time and powers extend. */
+  blockNumber?: (() => Promise<bigint>) | undefined;
+  /** Operator writer used to extend expiries (POST /v1/emails/:key/extend). Absent: that route answers 503. */
+  arkiv?: ArkivWriterPort | undefined;
+  /** ENS retention records (nanite.extend / nanite.extend-limit), read fresh for permission checks. */
+  retention?: RetentionSource | undefined;
 }
 
 type V1Env = { Variables: { agent: AuthedAgent } };
@@ -60,13 +69,14 @@ function typesParam(v: string | undefined): EmailType[] | undefined {
   return parts as EmailType[];
 }
 
-function summary(r: EmailRecord) {
+/** Per email: expiresAtBlock + estimated expiresAt (ISO, null when the block number is unavailable) + extendable. */
+function summary(r: EmailRecord, block: bigint | null, now: Date) {
   return {
     entityKey: r.$key,
     type: r.type,
     receivedAt: r.receivedAt,
     threadId: r.threadId,
-    expiresAtBlock: r.$expiresAt.toString(),
+    ...expiryFields(r, block, now),
   };
 }
 
@@ -128,11 +138,21 @@ export function v1Routes(deps: V1Deps) {
     return c.json({ error: "upstream_unavailable" }, 502);
   });
 
+  async function currentBlock(): Promise<bigint | null> {
+    if (!deps.blockNumber) return null;
+    try {
+      return await deps.blockNumber();
+    } catch {
+      return null;
+    }
+  }
+
   /** Decrypt (custody nanite) or raw ciphertext. Returns a Response. */
   async function respondEmail(c: Context<V1Env>, agent: AuthedAgent, rec: EmailRecord, raw: boolean) {
+    const block = await currentBlock();
     if (raw) {
       return c.json({
-        ...summary(rec),
+        ...summary(rec, block, now()),
         agentKeyId: agent.keyId,
         keyIds: rec.keyIds,
         ciphertext: b64(rec.ciphertext),
@@ -159,7 +179,7 @@ export function v1Routes(deps: V1Deps) {
     try {
       const plain = await decryptEmail(rec, { keyId: agent.keyId, publicKey: agent.publicKey, privateKey });
       return c.json({
-        ...summary(rec),
+        ...summary(rec, block, now()),
         content_trust: "untrusted",
         notice: UNTRUSTED_NOTICE,
         untrusted: { subject: plain.subject, body: plain.body },
@@ -199,7 +219,9 @@ export function v1Routes(deps: V1Deps) {
       ...(q.cursor ? { cursor: q.cursor } : {}),
       includeBytes: false,
     });
-    return c.json({ items: page.items.map(summary), ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}) });
+    const block = await currentBlock();
+    const at = now();
+    return c.json({ items: page.items.map((r) => summary(r, block, at)), ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}) });
   });
 
   app.get("/v1/otp/latest", async (c) => {
@@ -214,7 +236,7 @@ export function v1Routes(deps: V1Deps) {
     return c.json({
       otp: body.otp,
       receivedAt: rec.receivedAt,
-      expiresAtBlock: rec.$expiresAt.toString(),
+      ...expiryFields(rec, await currentBlock(), now()),
       entityKey: rec.$key,
       content_trust: "untrusted",
     });
@@ -265,6 +287,30 @@ export function v1Routes(deps: V1Deps) {
     }
     return respondEmail(c, agent, rec, c.req.query("raw") === "1");
   });
+
+  // Keep a conversation/sent email longer (works for hosted and self-hosted agents: nothing is decrypted). The
+  // operator signs and pays; ENS nanite.extend must be on and the daily nanite.extend-limit not used up.
+  app.post(
+    "/v1/emails/:entityKey/extend",
+    bodyLimit({ maxSize: 1024, onError: (c) => c.json({ error: "payload_too_large" }, 413) }),
+    async (c) => {
+      const agent = c.get("agent");
+      const key = c.req.param("entityKey");
+      if (!KEY_RE.test(key)) return c.json({ error: "invalid_entity_key" }, 400);
+      const body = (await c.req.json().catch(() => null)) as { days?: unknown } | null;
+      if (!body || typeof body !== "object" || Array.isArray(body)) return c.json({ error: "invalid_request" }, 400);
+      const ctx = await findSendContext(db, agent.agentId);
+      if (!ctx || !deps.arkiv) return c.json({ error: "extend_unavailable" }, 503);
+      const out = await extendEmailEntity(
+        { reader, arkiv: deps.arkiv, blockNumber: deps.blockNumber, now },
+        { agentEns: agent.ensName, ownerWallet: ctx.userWalletAddress },
+        key,
+        body.days,
+        { db, agentId: agent.agentId, retention: deps.retention },
+      );
+      return c.json(out.body, out.http);
+    },
+  );
 
   // Outbound send (T3.5): agent token, 64 KiB body limit, policy read fresh from ENS on every call.
   app.post(

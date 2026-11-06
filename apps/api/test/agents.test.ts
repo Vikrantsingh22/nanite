@@ -63,6 +63,28 @@ class FakeAgentChain implements AgentChain {
     });
     on({ step: "set-send-policy", phase: "done", txHash: "0xddd" });
   }
+  retentionWrites: Array<Record<string, unknown>> = [];
+  retention = new Map<string, { otpTtlMinutes: number; mailTtlHours: number; extend: string; extendLimit: number }>();
+  async readRetentionPolicy(name: string) {
+    const r = this.retention.get(name) ?? { otpTtlMinutes: 5, mailTtlHours: 48, extend: "on", extendLimit: 20 };
+    return { ...r, extend: r.extend as "on" | "off", invalid: 0 };
+  }
+  async setRetentionPolicy(
+    a: { username: string; agentLabel: string; otpTtlMinutes?: number; mailTtlHours?: number; extend?: string; extendLimit?: number },
+    on: (e: AgentEvent) => void,
+  ) {
+    on({ step: "set-retention", phase: "start" });
+    this.retentionWrites.push(a);
+    const name = `${a.agentLabel}.${a.username}.nanitecom.eth`;
+    const cur = await this.readRetentionPolicy(name);
+    this.retention.set(name, {
+      otpTtlMinutes: a.otpTtlMinutes ?? cur.otpTtlMinutes,
+      mailTtlHours: a.mailTtlHours ?? cur.mailTtlHours,
+      extend: a.extend ?? cur.extend,
+      extendLimit: a.extendLimit ?? cur.extendLimit,
+    });
+    on({ step: "set-retention", phase: "done", txHash: "0xfff1" });
+  }
   async revokeAgent(a: { agentLabel: string }, on: (e: AgentEvent) => void) {
     on({ step: "revoke-keys", phase: "start" });
     this.revokes.push(a.agentLabel);
@@ -383,6 +405,8 @@ describe("ownership: user A cannot touch user B's agent", () => {
       ["GET", `/agents/${id}/status`],
       ["GET", `/agents/${id}/send-policy`],
       ["PUT", `/agents/${id}/send-policy`, { policy: "any" }],
+      ["GET", `/agents/${id}/retention`],
+      ["PUT", `/agents/${id}/retention`, { mailTtlHours: 100 }],
       ["POST", `/agents/${id}/token`],
       ["POST", `/agents/${id}/revoke`],
       ["POST", `/agents/${id}/retry`],
@@ -393,6 +417,7 @@ describe("ownership: user A cannot touch user B's agent", () => {
       expect(r.status, `${method} ${path}`).toBe(404);
     }
     expect(chain.policyWrites.length).toBe(before);
+    expect(chain.retentionWrites).toHaveLength(0);
     expect(chain.revokes).toEqual([]);
     const [row] = await handle.db.select().from(agents).where(eq(agents.id, id));
     expect(row!.revokedAt).toBeNull();
@@ -464,6 +489,71 @@ describe("send policy", () => {
     chain.canWrite = false;
     const r = await req(app, u.cookie, `/agents/${body.agent.id}/send-policy`, { method: "PUT", body: JSON.stringify({ policy: "off" }) });
     expect(r.status).toBe(503);
+  });
+});
+
+describe("retention settings", () => {
+  it("GET returns the defaults; PUT writes only the given fields through the operator and the job completes", async () => {
+    const chain = new FakeAgentChain();
+    const app = makeApp(chain);
+    const u = await onboardedUser(app);
+    const { body } = await addAgent(app, u, "keeper", 0);
+    await waitActive(app, u.cookie, body.agent.id);
+    const id = body.agent.id as string;
+    expect(await (await req(app, u.cookie, `/agents/${id}/retention`)).json()).toEqual({
+      otpTtlMinutes: 5,
+      mailTtlHours: 48,
+      extend: "on",
+      extendLimit: 20,
+    });
+    const put = await req(app, u.cookie, `/agents/${id}/retention`, {
+      method: "PUT",
+      body: JSON.stringify({ mailTtlHours: 168, extend: "off" }),
+    });
+    expect(put.status).toBe(202);
+    expect(((await put.json()) as { kind: string }).kind).toBe("retention");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(chain.retentionWrites.at(-1)).toEqual({ username: u.username, agentLabel: "keeper", mailTtlHours: 168, extend: "off" });
+    expect(await (await req(app, u.cookie, `/agents/${id}/retention`)).json()).toEqual({
+      otpTtlMinutes: 5,
+      mailTtlHours: 168,
+      extend: "off",
+      extendLimit: 20,
+    });
+    expect(await (await req(app, u.cookie, `/agents/${id}/status`)).json()).toMatchObject({ kind: "retention", status: "done" });
+  });
+
+  it("validates ranges and types, needs an Origin and the operator", async () => {
+    const chain = new FakeAgentChain();
+    const app = makeApp(chain);
+    const u = await onboardedUser(app);
+    const { body } = await addAgent(app, u, "ranges", 0);
+    await waitActive(app, u.cookie, body.agent.id);
+    const url = `/agents/${body.agent.id}/retention`;
+    const put = (b: unknown) => req(app, u.cookie, url, { method: "PUT", body: JSON.stringify(b) });
+    for (const bad of [
+      {},
+      { otpTtlMinutes: 0 },
+      { otpTtlMinutes: 61 },
+      { otpTtlMinutes: 1.5 },
+      { otpTtlMinutes: "5" },
+      { mailTtlHours: 0 },
+      { mailTtlHours: 4381 },
+      { extend: "maybe" },
+      { extend: true },
+      { extendLimit: -1 },
+      { extendLimit: 1001 },
+    ]) {
+      expect((await put(bad)).status, JSON.stringify(bad)).toBe(400);
+    }
+    expect((await req(app, u.cookie, url, { method: "PUT", body: "{nope" })).status).toBe(400);
+    expect(chain.retentionWrites).toHaveLength(0);
+    expect((await req(app, u.cookie, url, { method: "PUT", headers: { origin: "https://evil.example" }, body: JSON.stringify({ extend: "on" }) })).status).toBe(403);
+    expect((await app.request(url, { method: "PUT", headers: { "content-type": "application/json", origin: ORIGIN }, body: JSON.stringify({ extend: "on" }) })).status).toBe(401);
+    expect((await put({ otpTtlMinutes: 60, mailTtlHours: 4380, extend: "on", extendLimit: 0 })).status).toBe(202);
+    await new Promise((r) => setTimeout(r, 50));
+    chain.canWrite = false;
+    expect((await put({ extend: "off" })).status).toBe(503);
   });
 });
 

@@ -11,6 +11,10 @@ import { EMAIL_TYPES, type ArkivReader, type EmailRecord, type EmailType } from 
 import { agents } from "@nanite/db";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { createRateLimiter, type RateLimiter } from "../agent-api/rate-limit.js";
+import type { ArkivWriterPort } from "../arkiv/port.js";
+import { expiryFields, extendEmailEntity } from "../extend/extend.js";
 import { requireSession, type AuthVars } from "../auth/session.js";
 import type { AuthDeps } from "../auth/types.js";
 
@@ -21,11 +25,14 @@ export interface MailDeps {
   /** Current chain block number, used to turn `$expiresAt` (a block) into a timestamp. Optional. */
   blockNumber?: () => Promise<bigint>;
   now?: () => Date;
+  /** Operator writer used by POST /mail/:agentId/emails/:key/extend. Absent: that route answers 503. */
+  arkiv?: ArkivWriterPort | undefined;
+  /** Rate limiter for the Keep route (per user id). Default 30 per minute. */
+  keepLimiter?: RateLimiter | undefined;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const KEY_RE = /^0x[0-9a-fA-F]{64}$/;
-const BLOCK_SECONDS = 2;
 const MAX_LIMIT = 100;
 
 const b64 = (u: Uint8Array) => Buffer.from(u).toString("base64");
@@ -73,10 +80,6 @@ export function mailRoutes(auth: AuthDeps, webOrigin: string, deps: MailDeps) {
   }
 
   function entity(r: EmailRecord, block: bigint | null) {
-    const expiresAt =
-      block === null
-        ? null
-        : new Date(now().getTime() + Number(r.$expiresAt - block) * BLOCK_SECONDS * 1000).toISOString();
     return {
       key: r.$key,
       type: r.type,
@@ -89,8 +92,7 @@ export function mailRoutes(auth: AuthDeps, webOrigin: string, deps: MailDeps) {
       ciphertext: b64(r.ciphertext),
       wrappedKeys: b64(r.wrappedKeys),
       nonce: b64(r.nonce),
-      expiresAtBlock: r.$expiresAt.toString(),
-      expiresAt,
+      ...expiryFields(r, block, now()),
     };
   }
 
@@ -149,6 +151,36 @@ export function mailRoutes(auth: AuthDeps, webOrigin: string, deps: MailDeps) {
       return c.json({ error: "upstream_unavailable" }, 502);
     }
   });
+
+  // Keep (extend) a conversation/sent email. The user's own action: not gated by the agent's ENS permission or daily
+  // limit, but rate limited per user. The operator signs and pays.
+  const keepLimiter = deps.keepLimiter ?? createRateLimiter({ limit: 30, windowMs: 60_000 });
+  app.post(
+    "/mail/:agentId/emails/:key/extend",
+    bodyLimit({ maxSize: 1024, onError: (c) => c.json({ error: "payload_too_large" }, 413) }),
+    async (c) => {
+      const { user } = c.get("auth");
+      const agent = await ownedAgent(user.id, c.req.param("agentId"));
+      const key = c.req.param("key");
+      if (!agent || !KEY_RE.test(key)) return c.json({ error: "not_found" }, 404);
+      const rl = keepLimiter.hit(user.id);
+      if (!rl.allowed) {
+        c.header("Retry-After", String(rl.retryAfterSec));
+        return c.json({ error: "rate_limited" }, 429);
+      }
+      const body = (await c.req.json().catch(() => null)) as { days?: unknown } | null;
+      if (!body || typeof body !== "object" || Array.isArray(body)) return c.json({ error: "invalid_request" }, 400);
+      if (!deps.arkiv) return c.json({ error: "extend_unavailable" }, 503);
+      const out = await extendEmailEntity(
+        { reader: deps.reader, arkiv: deps.arkiv, blockNumber: deps.blockNumber, now },
+        { agentEns: agent.ensName, ownerWallet: user.walletAddress },
+        key,
+        body.days,
+      );
+      c.header("Cache-Control", "no-store");
+      return c.json(out.body, out.http);
+    },
+  );
 
   return app;
 }

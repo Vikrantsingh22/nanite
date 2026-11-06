@@ -13,7 +13,17 @@
  */
 import { generateUserKeypair, keyId as computeKeyId, ready } from "@nanite/crypto";
 import { countMailSince, ensureUserMailDomain, getUserDomain, utcDayStart } from "@nanite/db";
-import { isSendPolicyMode, isValidAllowEntry, MAX_SEND_LIMIT } from "@nanite/ens";
+import {
+  EXTEND_MODES,
+  isSendPolicyMode,
+  isValidAllowEntry,
+  MAX_EXTEND_LIMIT,
+  MAX_MAIL_TTL_HOURS,
+  MAX_OTP_TTL_MINUTES,
+  MAX_SEND_LIMIT,
+  MIN_MAIL_TTL_HOURS,
+  MIN_OTP_TTL_MINUTES,
+} from "@nanite/ens";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { randomUUID } from "node:crypto";
@@ -351,6 +361,62 @@ export function agentRoutes(deps: AuthDeps, webOrigin: string, log: (line: strin
     if (!row.resolverAddress) return c.json({ error: "agent_not_active" }, 409);
     if (runner.busy(row.id)) return c.json({ error: "job_in_progress" }, 409);
     const job = runner.startPolicy(row.id, { username: user.username, agentLabel: row.name, policy: body.policy, allow, limit });
+    return c.json(jobBody(row, job), 202);
+  });
+
+  // Retention (how long mail lives on Arkiv + whether the agent may extend it): ENS records written by the operator
+  // on the user's request. The agent wallet has no right to write them.
+  app.get("/agents/:id/retention", async (c) => {
+    const { user } = c.get("auth");
+    const row = await getOwnedAgent(deps.db, user.id, c.req.param("id"));
+    if (!row) return notFound(c);
+    if (!chain) return c.json({ error: "chain_unavailable" }, 503);
+    if (row.revokedAt) return c.json({ error: "agent_revoked" }, 409);
+    if (!row.resolverAddress) return c.json({ error: "agent_not_active" }, 409);
+    try {
+      const { invalid: _invalid, ...p } = await chain.readRetentionPolicy(row.ensName);
+      c.header("Cache-Control", "no-store");
+      return c.json(p);
+    } catch {
+      return c.json({ error: "chain_unavailable" }, 502);
+    }
+  });
+
+  app.put("/agents/:id/retention", bodyLimit({ maxSize: 1024, onError: (c) => c.json({ error: "payload_too_large" }, 413) }), async (c) => {
+    const { user } = c.get("auth");
+    const row = await getOwnedAgent(deps.db, user.id, c.req.param("id"));
+    if (!row) return notFound(c);
+    if (!chain || !chain.canWrite || !runner) return c.json({ error: "operator_not_configured" }, 503);
+    const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!body || typeof body !== "object" || Array.isArray(body)) return c.json({ error: "invalid_request" }, 400);
+    const int = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
+    let otpTtlMinutes: number | undefined;
+    let mailTtlHours: number | undefined;
+    let extend: string | undefined;
+    let extendLimit: number | undefined;
+    if (body.otpTtlMinutes !== undefined) {
+      if (!int(body.otpTtlMinutes, MIN_OTP_TTL_MINUTES, MAX_OTP_TTL_MINUTES)) return c.json({ error: "invalid_otp_ttl" }, 400);
+      otpTtlMinutes = body.otpTtlMinutes as number;
+    }
+    if (body.mailTtlHours !== undefined) {
+      if (!int(body.mailTtlHours, MIN_MAIL_TTL_HOURS, MAX_MAIL_TTL_HOURS)) return c.json({ error: "invalid_mail_ttl" }, 400);
+      mailTtlHours = body.mailTtlHours as number;
+    }
+    if (body.extend !== undefined) {
+      if (typeof body.extend !== "string" || !(EXTEND_MODES as readonly string[]).includes(body.extend)) return c.json({ error: "invalid_extend" }, 400);
+      extend = body.extend;
+    }
+    if (body.extendLimit !== undefined) {
+      if (!int(body.extendLimit, 0, MAX_EXTEND_LIMIT)) return c.json({ error: "invalid_extend_limit" }, 400);
+      extendLimit = body.extendLimit as number;
+    }
+    if (otpTtlMinutes === undefined && mailTtlHours === undefined && extend === undefined && extendLimit === undefined) {
+      return c.json({ error: "invalid_request" }, 400);
+    }
+    if (row.revokedAt) return c.json({ error: "agent_revoked" }, 409);
+    if (!row.resolverAddress) return c.json({ error: "agent_not_active" }, 409);
+    if (runner.busy(row.id)) return c.json({ error: "job_in_progress" }, 409);
+    const job = runner.startRetention(row.id, { username: user.username, agentLabel: row.name, otpTtlMinutes, mailTtlHours, extend, extendLimit });
     return c.json(jobBody(row, job), 202);
   });
 

@@ -6,6 +6,7 @@ import {
   type CallSpec,
   type ChainIO,
   type NameReader,
+  type RetentionPolicy,
   type SendPolicy,
 } from "@nanite/ens";
 import { getAddress } from "viem";
@@ -16,6 +17,7 @@ export type AgentStepId =
   | "grant-keys"
   | "publish-signer"
   | "set-send-policy"
+  | "set-retention"
   | "revoke-keys";
 
 export interface AgentEvent {
@@ -39,6 +41,13 @@ export interface AgentChain {
   ): Promise<void>;
   revokeAgent(
     a: { username: string; agentLabel: string; agentWallet: string },
+    onEvent: (e: AgentEvent) => void,
+  ): Promise<void>;
+  /** Fresh read of the four retention records (defaults for missing/invalid values). */
+  readRetentionPolicy(ensName: string): Promise<RetentionPolicy & { invalid: number }>;
+  /** Operator `setText` of the retention records given (the agent wallet cannot write them). */
+  setRetentionPolicy(
+    a: { username: string; agentLabel: string; otpTtlMinutes?: number; mailTtlHours?: number; extend?: string; extendLimit?: number },
     onEvent: (e: AgentEvent) => void,
   ): Promise<void>;
   /** Operator `setText(nanite.signer, address)`; resumable (no tx when the record already matches). */
@@ -128,6 +137,16 @@ export function createRealAgentChain(env: {
     setSendPolicy: (a, onEvent) =>
       withEmit(onEvent, async () => {
         await svc().setSendPolicy(a);
+      }),
+    readRetentionPolicy: (name) => svc().readRetentionPolicy(name),
+    setRetentionPolicy: (a, onEvent) =>
+      withEmit(onEvent, async () => {
+        forcedStep = "set-retention";
+        try {
+          await svc().setRetentionPolicy(a);
+        } finally {
+          forcedStep = undefined;
+        }
       }),
     revokeAgent: (a, onEvent) =>
       withEmit(onEvent, async () => {

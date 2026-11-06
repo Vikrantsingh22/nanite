@@ -3,6 +3,7 @@ import { decryptEmail, ready } from "@nanite/crypto";
 import { createDb } from "@nanite/db";
 import { InMemoryArkivWriter, type ArkivWriterPort } from "../src/arkiv/port.js";
 import { createApp } from "../src/app.js";
+import { createRetentionSource, type RetentionSource } from "../src/retention.js";
 import { bodyText, classify, extractLinks, parseFromAddress, threadId } from "../src/inbound/classify.js";
 import { FAKE_FIXTURES, createFakeMailProvider, fixtureOf, type FakeMailProvider } from "../src/mail/fake.js";
 import { signSvix, verifySvix } from "../src/mail/svix.js";
@@ -24,14 +25,14 @@ let provider: FakeMailProvider;
 let arkiv: InMemoryArkivWriter;
 let seq = 0;
 
-function makeApp(arkivPort: ArkivWriterPort = arkiv, withInbound = true) {
+function makeApp(arkivPort: ArkivWriterPort = arkiv, withInbound = true, retention?: RetentionSource) {
   return createApp({
     db: { ping: async () => void (await handle.client`select 1`) },
     webOrigin: "http://localhost:3000",
     version: "t",
     log: (l) => logs.push(l),
     ...(withInbound
-      ? { inbound: { db: handle.db, provider, arkiv: arkivPort, senderHashSecret: SENDER_SECRET, sync: true } }
+      ? { inbound: { db: handle.db, provider, arkiv: arkivPort, senderHashSecret: SENDER_SECRET, sync: true, ...(retention ? { retention } : {}) } }
       : {}),
   });
 }
@@ -326,6 +327,72 @@ describe("POST /webhooks/resend", () => {
     for (const secret of ["SUBJECTMARKER", "BODYMARKER", SENDER, "leaker.person", OTP, "Quarterly"]) {
       expect(haystack).not.toContain(secret);
     }
+  });
+});
+
+describe("retention: per-agent lifetimes (T3.8)", () => {
+  const retentionOf = (read: () => Promise<{ otpTtlMinutes: number; mailTtlHours: number; extend: "on" | "off"; extendLimit: number; invalid?: number }>, calls?: { n: number }) =>
+    createRetentionSource({ read: async () => { if (calls) calls.n++; return read(); } });
+  const store = (app: ReturnType<typeof makeApp>, id: string, subject = SUBJECT) => post(app, eventBody(id, ["alex@nanite.test"], subject));
+
+  it("without a retention source: OTP 5 minutes, conversation 48 hours, OTP never extendable, conversation extendable", async () => {
+    await store(makeApp(), `em_ttl_otp_${++seq}`, "Your verification code");
+    await store(makeApp(), `em_ttl_conv_${++seq}`);
+    const [otp, conv] = arkiv.writes;
+    expect(otp!.fields.type).toBe("otp");
+    expect(otp!.expiresInSeconds).toBe(300);
+    expect(otp!.permissionlessExtension).toBe(false);
+    expect(conv!.fields.type).toBe("conversation");
+    expect(conv!.expiresInSeconds).toBe(48 * 3600);
+    expect(conv!.permissionlessExtension).toBe(true);
+  });
+
+  it("uses the agent's ENS values: otp-ttl for codes, mail-ttl for conversations", async () => {
+    const r = retentionOf(async () => ({ otpTtlMinutes: 12, mailTtlHours: 6, extend: "on", extendLimit: 20 }));
+    await store(makeApp(arkiv, true, r), `em_ttl2_otp_${++seq}`, "Your verification code");
+    await store(makeApp(arkiv, true, r), `em_ttl2_conv_${++seq}`);
+    expect(arkiv.writes.map((w) => [w.fields.type, w.expiresInSeconds, w.permissionlessExtension])).toEqual([
+      ["otp", 12 * 60, false],
+      ["conversation", 6 * 3600, true],
+    ]);
+  });
+
+  it("reads ENS once per agent within 60 s, then again after the cache expires", async () => {
+    let t = 1_000_000;
+    const calls = { n: 0 };
+    const r = createRetentionSource({
+      read: async () => { calls.n++; return { otpTtlMinutes: 5, mailTtlHours: 24, extend: "on", extendLimit: 20 }; },
+      now: () => t,
+    });
+    for (let i = 0; i < 3; i++) await store(makeApp(arkiv, true, r), `em_ttl3_${++seq}`);
+    expect(calls.n).toBe(1);
+    t += 59_000;
+    await store(makeApp(arkiv, true, r), `em_ttl3_${++seq}`);
+    expect(calls.n).toBe(1);
+    t += 2_000;
+    await store(makeApp(arkiv, true, r), `em_ttl3_${++seq}`);
+    expect(calls.n).toBe(2);
+    expect(arkiv.writes.every((w) => w.expiresInSeconds === 24 * 3600)).toBe(true);
+  });
+
+  it("a failed ENS read never blocks mail: defaults are used and only a count is logged", async () => {
+    const lines: Record<string, unknown>[] = [];
+    const r = createRetentionSource({ read: async () => { throw new Error(`rpc ${SUBJECT}`); }, log: (f) => lines.push(f) });
+    const out = await store(makeApp(arkiv, true, r), `em_ttl4_${++seq}`);
+    expect(out.json).toEqual({ status: "stored" });
+    expect(arkiv.writes[0]!.expiresInSeconds).toBe(48 * 3600);
+    expect(JSON.stringify(lines)).not.toContain("SUBJECTMARKER");
+    expect(lines).toEqual([{ event: "retention_read_failed", fallback: "defaults" }]);
+  });
+
+  it("logs invalid ENS records as a count only", async () => {
+    const lines: Record<string, unknown>[] = [];
+    const r = createRetentionSource({
+      read: async () => ({ otpTtlMinutes: 5, mailTtlHours: 48, extend: "on", extendLimit: 20, invalid: 2 }),
+      log: (f) => lines.push(f),
+    });
+    await r.get("alex.vikrant.nanitecom.eth");
+    expect(lines).toEqual([{ event: "retention_invalid_records", invalid: 2 }]);
   });
 });
 

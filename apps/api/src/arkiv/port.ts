@@ -33,6 +33,8 @@ export interface WriteEmailInput {
   ownerWallet: string;
   /** true for everything except OTPs. */
   permissionlessExtension: boolean;
+  /** Lifetime in seconds from the write (the agent's OTP / mail TTL). Absent: the writer's own default (OTP 5 min, mail 2 days). */
+  expiresInSeconds?: number;
 }
 
 export interface WriteEmailOutput {
@@ -43,13 +45,25 @@ export interface WriteEmailOutput {
 export interface ArkivWriterPort {
   /** Resolves once the write is confirmed on chain (or throws; errors never carry content). */
   writeEmail(input: WriteEmailInput): Promise<WriteEmailOutput>;
+  /**
+   * Set the entity's expiry to `seconds` from now (operator-signed, paid by the operator, single-flight with writes).
+   * Only valid for conversation/sent entities (created permissionlessExtension). Optional: without it the extend
+   * routes answer 503 extend_unavailable.
+   */
+  extendEmail?(entityKey: string, seconds: number): Promise<{ txHash: string; expiresAtBlock: bigint | null }>;
 }
 
 /** Dev/test fake: keeps the last writes in memory and returns fake entity keys. */
 export class InMemoryArkivWriter implements ArkivWriterPort {
   readonly writes: WriteEmailInput[] = [];
+  readonly extensions: Array<{ entityKey: string; seconds: number }> = [];
   private counter = 0;
   constructor(private readonly keep = 100) {}
+
+  async extendEmail(entityKey: string, seconds: number): Promise<{ txHash: string; expiresAtBlock: bigint | null }> {
+    this.extensions.push({ entityKey, seconds });
+    return { txHash: `0xfadeed${this.extensions.length}`, expiresAtBlock: null };
+  }
 
   async writeEmail(input: WriteEmailInput): Promise<WriteEmailOutput> {
     this.writes.push(input);
