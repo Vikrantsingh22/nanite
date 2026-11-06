@@ -23,8 +23,17 @@ export interface FakeMailProvider extends MailProvider {
   /** Every POST /emails attempt, failed ones included. */
   readonly sendCalls: number;
   /** Queue provider failures: the next calls of that kind fail with these Resend-shaped errors, in order. */
-  failNext(kind: "send" | "fetch", ...failures: FakeFailure[]): void;
+  failNext(kind: "send" | "fetch" | "get", ...failures: FakeFailure[]): void;
+  /** Number of GET /emails/{id} calls (sent-mail lookups), failed ones included. */
+  readonly getCalls: number;
 }
+
+/**
+ * Like Resend/Amazon SES, the fake REPLACES the Message-ID of every sent mail: whatever the caller put in
+ * `headers["Message-ID"]` is ignored and `GET /emails/{id}` returns `message_id` = this SES-style id. Other
+ * headers (In-Reply-To, References, X-Nanite-*) are kept, as on the first real email (2026-11-06).
+ */
+export const fakeProviderMessageId = (providerId: string): string => `<010601fake${providerId.replace(/[^a-z0-9]/gi, "")}-0000@eu-west-1.amazonses.com>`;
 
 /**
  * Named demo fixtures, picked by a token in the email id: `fake-<fixture>-<anything>` (see
@@ -129,8 +138,9 @@ export function createFakeMailProvider(options: FakeMailProviderOptions): FakeMa
   const fetched: string[] = [];
   const fetchedUrls: string[] = [];
   const sent: OutboundEmail[] = [];
-  const queued: Record<"send" | "fetch", FakeFailure[]> = { send: [], fetch: [] };
+  const queued: Record<"send" | "fetch" | "get", FakeFailure[]> = { send: [], fetch: [], get: [] };
   let sendCalls = 0;
+  let getCalls = 0;
 
   const failureResponse = (f: FakeFailure) => {
     if (f.network) throw new TypeError("fetch failed");
@@ -175,6 +185,19 @@ export function createFakeMailProvider(options: FakeMailProviderOptions): FakeMa
       sent.push({ ...body, ...(key ? { idempotencyKey: key } : {}) });
       return json({ id: `fake-sent-${sent.length}` });
     }
+    if (url.pathname.startsWith("/emails/") && (init?.method ?? "GET") === "GET") {
+      getCalls += 1;
+      const failure = queued.get.shift();
+      if (failure) return failureResponse(failure);
+      const id = decodeURIComponent(url.pathname.slice("/emails/".length));
+      const m = /^fake-sent-(\d+)$/.exec(id);
+      const mail = m ? sent[Number(m[1]) - 1] : undefined;
+      if (!mail) return json({ statusCode: 404, name: "not_found", message: "Email not found." }, 404);
+      return json({
+        object: "email", id, to: mail.to, from: mail.from, created_at: "2026-11-06T10:00:00.000Z", subject: mail.subject,
+        last_event: "delivered", message_id: fakeProviderMessageId(id), text: mail.text ?? null, html: mail.html ?? null,
+      });
+    }
     return json({ statusCode: 404, name: "not_found", message: "Route not found." }, 404);
   }) as typeof fetch;
 
@@ -191,11 +214,15 @@ export function createFakeMailProvider(options: FakeMailProviderOptions): FakeMa
     get sendCalls() {
       return sendCalls;
     },
+    get getCalls() {
+      return getCalls;
+    },
     failNext(kind, ...failures) {
       queued[kind].push(...failures);
     },
     verifyWebhook: (raw, headers) => real.verifyWebhook(raw, headers),
     fetchReceived: (emailId) => real.fetchReceived(emailId),
     send: (message) => real.send(message),
+    getSentMessageId: (id) => real.getSentMessageId(id),
   };
 }

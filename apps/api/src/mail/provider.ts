@@ -28,6 +28,16 @@ export type InboundEvent =
       /** Every address the mail was addressed to (to, cc, bcc, received_for), lowercased, deduped. */
       recipients: string[];
     }
+  | {
+      /** `domain.created` / `domain.updated` / `domain.deleted` (custom domain onboarding). Metadata only. */
+      kind: "domain";
+      providerEventId: string;
+      type: string;
+      domainId: string;
+      status?: string;
+      /** Raw `data.records` of the payload (validated by the domain service). */
+      records?: unknown;
+    }
   | { kind: "ignored"; providerEventId: string; type: string };
 
 export interface ReceivedEmail {
@@ -63,4 +73,10 @@ export interface MailProvider {
   fetchReceived(emailId: string): Promise<ReceivedEmail>;
   /** Send an email (POST /v1/emails/send, T3.5). */
   send(message: OutboundEmail): Promise<{ id: string }>;
+  /**
+   * The Message-ID the provider actually put on a sent mail (`GET /emails/{id}` -> `message_id`), "<...>" form,
+   * or null if the provider has none yet. Resend/SES replace the Message-ID we could set, so this is the id that
+   * later replies will carry in In-Reply-To / References. Throws ProviderError on HTTP/network failure.
+   */
+  getSentMessageId(id: string): Promise<string | null>;
 }

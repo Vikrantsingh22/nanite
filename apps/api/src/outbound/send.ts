@@ -23,8 +23,9 @@ import {
   type Db,
 } from "@nanite/db";
 import { signWithSealedSigner, unsealAgentPrivateKey } from "../agent-api/keys.js";
-import { canonicalSendStringV2, SIG_VERSION, type SendPolicy } from "@nanite/ens";
+import { canonicalSendStringV3, SIG_VERSION, type SendPolicy } from "@nanite/ens";
 import { createHmac } from "node:crypto";
+import { threadIdForRoot } from "../inbound/classify.js";
 import type { ArkivWriterPort } from "../arkiv/port.js";
 import type { MailProvider } from "../mail/provider.js";
 import { ProviderError } from "../mail/resend.js";
@@ -84,7 +85,7 @@ export type SendOutcome =
         status: "sent";
         providerMessageId: string;
         entityKey: string | null;
-        /** "signed": X-Nanite-Signature (v2) is attached; "unavailable": no signer (self custody / not set up) or signing failed. */
+        /** "signed": X-Nanite-Signature (v3) is attached; "unavailable": no signer (self custody / not set up) or signing failed. */
         signature: "signed" | "unavailable";
         sentCopy?: "failed";
         threading?: "unavailable";
@@ -241,6 +242,35 @@ function retryDelayMs(err: unknown): number | null {
   return null;
 }
 
+/** Total time we are willing to wait for the provider to report the real Message-ID of a sent mail. */
+export const MESSAGE_ID_WAIT_MS = 3000;
+const MESSAGE_ID_RETRY_DELAYS_MS = [300, 600, 1000];
+
+/**
+ * Best effort, never throws: the Message-ID the provider put on the mail we just sent (`GET /emails/{id}`), which
+ * is what mail clients will reference in replies. Retries briefly (the record may not be ready right after the
+ * send) and gives up after MESSAGE_ID_WAIT_MS, returning null.
+ */
+async function providerMessageIdFor(deps: OutboundDeps, providerId: string): Promise<string | null> {
+  const deadline = Date.now() + MESSAGE_ID_WAIT_MS;
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const withinDeadline = <T>(p: Promise<T>): Promise<T | "timeout"> =>
+    Promise.race([p, new Promise<"timeout">((r) => setTimeout(() => r("timeout"), Math.max(0, deadline - Date.now())).unref?.())]);
+  for (let attempt = 0; attempt <= MESSAGE_ID_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const got = await withinDeadline(deps.provider.getSentMessageId(providerId));
+      if (got === "timeout") return null;
+      if (got && MSGID_RE.test(got)) return got;
+    } catch {
+      /* not ready / provider hiccup: retry below */
+    }
+    const delay = MESSAGE_ID_RETRY_DELAYS_MS[attempt];
+    if (delay === undefined || Date.now() + delay >= deadline) return null;
+    await sleep(delay);
+  }
+  return null;
+}
+
 /** One send plus at most one retry (same idempotency key, so Resend never delivers twice for a duplicate). */
 async function sendWithRetry(deps: OutboundDeps, message: Parameters<MailProvider["send"]>[0]) {
   try {
@@ -316,8 +346,10 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
 
   // 5. Send. Replies carry In-Reply-To / References taken from the encrypted meta of the mail being answered.
   const date = now.toUTCString();
-  const messageId = `<${log.id}@${from.slice(from.lastIndexOf("@") + 1)}>`;
-  const headers: Record<string, string> = { "X-Nanite-Agent": agent.ensName, "Message-ID": messageId, "X-Nanite-Date": date };
+  // Our own id travels in a custom header (and is signed). We do NOT set Message-ID: Resend/SES replace it anyway,
+  // and the provider's value is fetched after the send for threading (see below).
+  const naniteMessageId = `<${log.id}@${from.slice(from.lastIndexOf("@") + 1)}>`;
+  const headers: Record<string, string> = { "X-Nanite-Agent": agent.ensName, "X-Nanite-Message-Id": naniteMessageId, "X-Nanite-Date": date };
   if (thread && thread !== "unavailable") {
     headers["In-Reply-To"] = thread.inReplyTo;
     headers["References"] = thread.references.join(" ");
@@ -331,7 +363,7 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
         deps.masterKey,
         agent.agentId,
         new Uint8Array(ctx.signerKeySealed),
-        canonicalSendStringV2({ ensName: agent.ensName, from, to, subject, body, date, messageId }),
+        canonicalSendStringV3({ ensName: agent.ensName, from, to, subject, body, date, naniteMessageId }),
       );
       if (signed.address.toLowerCase() === ctx.signerAddress.toLowerCase()) {
         headers["X-Nanite-Signature"] = signed.signature;
@@ -366,15 +398,26 @@ export async function sendEmail(deps: OutboundDeps, agent: AuthedAgent, rawBody:
         { keyId: ctx.userKeyId, publicKey: new Uint8Array(ctx.userPublicKey) },
         { keyId: ctx.agentKeyId, publicKey: new Uint8Array(ctx.agentPublicKey) },
       ];
+      // The Message-ID the provider really put on the mail (best effort, <= 3 s). Written before the copy so the
+      // copy needs no later update.
+      const providerMsgId = await providerMessageIdFor(deps, providerMessageId);
       // Thread linkage lives only inside the encrypted copy (so a later reply to this mail can thread too).
+      // messageId = what mail clients will cite in replies (the provider's id); naniteMessageId = our signed id.
       const meta: EmailMeta = {
         to,
         direction: "sent",
-        messageId,
+        naniteMessageId,
+        ...(providerMsgId ? { messageId: providerMsgId } : {}),
         ...(thread && thread !== "unavailable" ? { inReplyTo: thread.inReplyTo, references: thread.references } : {}),
       };
       const enc = await encryptEmail({ subject, body, meta }, recipients);
-      const threadKey = createHmac("sha256", deps.senderHashSecret).update(`nanite/sent-thread/v1/${ctx.userId}/${log.id}`).digest("hex").slice(0, 32);
+      // Same threadId an inbound reply will get (inbound root = first References id, else In-Reply-To): the root
+      // of the chain this copy belongs to. Without a provider id nothing can reference this mail, so the copy
+      // keeps its own opaque thread.
+      const root = thread && thread !== "unavailable" ? thread.references[0] : providerMsgId;
+      const threadKey = root
+        ? threadIdForRoot(deps.senderHashSecret, ctx.userId, root)
+        : createHmac("sha256", deps.senderHashSecret).update(`nanite/sent-thread/v1/${ctx.userId}/${log.id}`).digest("hex").slice(0, 32);
       const res = await deps.arkiv.writeEmail({
         fields: {
           agentId: ctx.ensName,

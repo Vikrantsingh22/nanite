@@ -123,6 +123,16 @@ export function threadId(
   const refs = mail.headers["references"]?.match(MSGID_RE) ?? [];
   const inReplyTo = mail.headers["in-reply-to"]?.match(MSGID_RE) ?? [];
   const root = refs[0] ?? inReplyTo[0] ?? mail.messageId?.match(MSGID_RE)?.[0] ?? `provider:${mail.id}`;
+  return threadIdForRoot(secret, userId, root);
+}
+
+/**
+ * The threadId for a known thread root (a Message-ID). Shared with the outbound sent copy so that a mail we send
+ * and the replies to it land in the same thread: the sent copy uses the root of the chain it belongs to (first
+ * References id when it is itself a reply, else the provider's Message-ID of the sent mail), and a reply to it
+ * carries that same root in References / In-Reply-To.
+ */
+export function threadIdForRoot(secret: string, userId: string, root: string): string {
   const userKey = createHmac("sha256", secret).update(`nanite/thread-id/v1/user/${userId}`).digest();
   return createHmac("sha256", userKey).update(root.trim().toLowerCase()).digest("hex").slice(0, 32);
 }

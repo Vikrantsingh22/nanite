@@ -15,7 +15,7 @@ import { createApp } from "../src/app.js";
 import { issueAgentToken } from "../src/agent-api/tokens.js";
 import { provisionNaniteAgentKey } from "../src/agent-api/keys.js";
 import { handleInboundEvent } from "../src/inbound/pipeline.js";
-import { createFakeMailProvider } from "../src/mail/fake.js";
+import { createFakeMailProvider, fakeProviderMessageId } from "../src/mail/fake.js";
 import type { OutboundEns, OutboundReader } from "../src/outbound/send.js";
 
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://nanite:nanite@db:5432/nanite";
@@ -174,7 +174,8 @@ describe("reply threading", () => {
     expect(m.subject).toBe("my own subject"); // never rewritten
     expect(m.headers!["In-Reply-To"]).toBe("<orig@example.org>");
     expect(m.headers!["References"]).toBe("<root@example.org> <mid@example.org> <orig@example.org>");
-    expect(m.headers!["Message-ID"]).toMatch(/^<[0-9a-f-]{36}@mail\.nanite\.test>$/);
+    expect(m.headers!["X-Nanite-Message-Id"]).toMatch(/^<[0-9a-f-]{36}@mail\.nanite\.test>$/);
+    expect(m.headers).not.toHaveProperty("Message-ID"); // the provider owns Message-ID
 
     const w = arkiv.writes[0]!;
     const rec = { ...w.fields, $key: "0x00", $owner: "0x0", $creator: "0x0", $expiresAt: 1n } as unknown as EmailRecord;
@@ -183,8 +184,10 @@ describe("reply threading", () => {
       direction: "sent",
       inReplyTo: "<orig@example.org>",
       references: ["<root@example.org>", "<mid@example.org>", "<orig@example.org>"],
-      messageId: m.headers!["Message-ID"],
+      naniteMessageId: m.headers!["X-Nanite-Message-Id"],
+      messageId: fakeProviderMessageId(`fake-sent-${provider.sent.length}`), // the provider's id, not ours
     });
+    expect(plain.meta!.messageId).not.toBe(m.headers!["X-Nanite-Message-Id"]);
     const attrs = JSON.stringify(Object.entries(w.fields).filter(([k]) => !["ciphertext", "wrappedKeys", "nonce"].includes(k)));
     expect(attrs).not.toContain("example.org");
     expect(JSON.stringify(await deniedRows(n.id)) + JSON.stringify(await allowedRows(n.id))).not.toContain("example.org");
@@ -245,6 +248,93 @@ describe("reply threading", () => {
     expect((await send(n, msg({ inReplyTo: foreign }))).status).toBe(404);
     expect((await send(n, msg({ inReplyTo: "0x" + "ab".repeat(32) }))).status).toBe(404);
     expect((await allowedRows(n.id)).length).toBe(before);
+  });
+});
+
+describe("provider Message-ID and thread linking", () => {
+  const decryptLast = async () => {
+    const w = arkiv.writes.at(-1)!;
+    const rec = { ...w.fields, $key: "0x00", $owner: "0x0", $creator: "0x0", $expiresAt: 1n } as unknown as EmailRecord;
+    const plain = await decryptEmail(rec, { keyId: keyId(userKp.publicKey), publicKey: userKp.publicKey, privateKey: userKp.privateKey });
+    return { meta: plain.meta!, threadId: w.fields.threadId };
+  };
+  const lastProviderMsgId = () => fakeProviderMessageId(`fake-sent-${provider.sent.length}`);
+  const inboundReply = async (suffix: string, headers: Record<string, string>) => {
+    const emailId = `em_${tag}_${suffix}`;
+    const p = createFakeMailProvider({
+      webhookSecret: "whsec_" + Buffer.from("x".repeat(24)).toString("base64"),
+      emails: { [emailId]: { subject: "Re: x", text: "a plain reply", messageId: `<${suffix}@gmail.example>`, headers } },
+    });
+    const before = arkiv.writes.length;
+    const r = await handleInboundEvent(
+      { db: handle.db, provider: p, arkiv, senderHashSecret: SECRET },
+      { kind: "received", providerEventId: eventPrefix + suffix, emailId, recipients: [mailboxAddr] },
+      () => undefined,
+    );
+    expect(r.http).toBe(200);
+    expect(arkiv.writes.length).toBe(before + 1);
+    return arkiv.writes.at(-1)!.fields.threadId;
+  };
+
+  it("stores the provider's Message-ID in meta.messageId and our id in meta.naniteMessageId", async () => {
+    ens.policy = { policy: "any", allow: [], limit: 500 };
+    const calls = provider.getCalls;
+    expect((await send(a, msg())).status).toBe(200);
+    expect(provider.getCalls).toBe(calls + 1);
+    const { meta } = await decryptLast();
+    const sent = provider.sent.at(-1)!;
+    expect(sent.headers).not.toHaveProperty("Message-ID");
+    expect(meta.messageId).toBe(lastProviderMsgId());
+    expect(meta.messageId).toMatch(/amazonses\.com>$/);
+    expect(meta.naniteMessageId).toBe(sent.headers!["X-Nanite-Message-Id"]);
+    expect(meta.naniteMessageId).not.toBe(meta.messageId);
+  });
+
+  it("retries while the provider does not know the message yet, then stores it", async () => {
+    provider.failNext("get", { status: 404, name: "not_found" }, { status: 404, name: "not_found" });
+    const calls = provider.getCalls;
+    expect((await send(a, msg())).status).toBe(200);
+    expect(provider.getCalls).toBe(calls + 3);
+    expect((await decryptLast()).meta.messageId).toBe(lastProviderMsgId());
+  });
+
+  it("never fails the send: without a provider id the copy is stored with only our id", async () => {
+    const fail = { status: 500, name: "application_error" };
+    provider.failNext("get", fail, fail, fail, fail, fail);
+    const res = await send(a, msg());
+    expect(res.status).toBe(200);
+    const b2 = (await res.json()) as Record<string, unknown>;
+    expect(b2.entityKey).toEqual(expect.any(String));
+    expect(b2).not.toHaveProperty("sentCopy");
+    const { meta } = await decryptLast();
+    expect(meta).not.toHaveProperty("messageId");
+    expect(meta.naniteMessageId).toBe(provider.sent.at(-1)!.headers!["X-Nanite-Message-Id"]);
+  });
+
+  it("a reply to a fresh sent mail (In-Reply-To / References = the provider id) gets the sent copy's threadId", async () => {
+    expect((await send(a, msg())).status).toBe(200);
+    const mid = lastProviderMsgId();
+    const sentThread = (await decryptLast()).threadId;
+    expect(await inboundReply("r1", { references: mid, "in-reply-to": mid })).toBe(sentThread);
+    expect(await inboundReply("r2", { "in-reply-to": mid })).toBe(sentThread); // clients that send no References
+    expect(await inboundReply("r3", { references: `${mid} <later@gmail.example>`, "in-reply-to": "<later@gmail.example>" })).toBe(sentThread);
+    // An unrelated mail does not join it.
+    expect(await inboundReply("r4", { references: "<other@elsewhere.example>" })).not.toBe(sentThread);
+  });
+
+  it("our reply to an inbound mail joins that mail's thread; a later answer to our reply stays in it", async () => {
+    const orig = { messageId: "<orig@example.org>", references: ["<root@example.org>", "<mid@example.org>"] };
+    const key = await source(n, orig);
+    expect((await send(n, msg({ inReplyTo: key }))).status).toBe(200);
+    const sentThread = (await decryptLast()).threadId;
+    // the threadId the inbound pipeline computed (or would compute) for the original mail
+    const { threadId } = await import("../src/inbound/classify.js");
+    const origThread = threadId(SECRET, userId, { id: "x", messageId: orig.messageId, headers: { references: orig.references.join(" ") } });
+    expect(sentThread).toBe(origThread);
+    // and the same for an original without References: root = its own Message-ID
+    const key2 = await source(n, { messageId: "<solo@example.org>" });
+    expect((await send(n, msg({ inReplyTo: key2 }))).status).toBe(200);
+    expect((await decryptLast()).threadId).toBe(threadId(SECRET, userId, { id: "x", messageId: "<solo@example.org>", headers: {} }));
   });
 });
 

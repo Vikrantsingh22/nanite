@@ -162,6 +162,19 @@ export function createResendProvider(options: ResendProviderOptions): MailProvid
         throw new WebhookVerificationError();
       }
       const body = parsed as { type?: unknown; data?: Record<string, unknown> };
+      if (body.type === "domain.created" || body.type === "domain.updated" || body.type === "domain.deleted") {
+        const d = body.data ?? {};
+        const id = typeof d.id === "string" ? d.id : typeof d.domain_id === "string" ? d.domain_id : "";
+        if (!id || id.length > 128) throw new WebhookVerificationError();
+        return {
+          kind: "domain",
+          providerEventId,
+          type: body.type,
+          domainId: id,
+          ...(typeof d.status === "string" ? { status: d.status } : {}),
+          ...(d.records !== undefined ? { records: d.records } : {}),
+        };
+      }
       if (body.type !== "email.received") {
         return { kind: "ignored", providerEventId, type: typeof body.type === "string" ? body.type.slice(0, 64) : "unknown" };
       }
@@ -216,6 +229,15 @@ export function createResendProvider(options: ResendProviderOptions): MailProvid
       })) as { id?: unknown };
       if (typeof json.id !== "string") throw new ProviderError("provider_bad_response");
       return { id: json.id };
+    },
+
+    async getSentMessageId(id: string): Promise<string | null> {
+      // https://resend.com/docs/api-reference/emails/retrieve-email : returns message_id (the id SES put on the mail).
+      const json = (await call(`/emails/${encodeURIComponent(id)}`, { headers: auth })) as { message_id?: unknown } | null;
+      const raw = typeof json?.message_id === "string" ? json.message_id.trim() : "";
+      if (!raw) return null;
+      const id2 = /^<[^<>\s]+>$/.test(raw) ? raw : /^[^<>\s]+$/.test(raw) ? `<${raw}>` : null; // tolerate a bare id
+      return id2 && id2.length <= 202 ? id2 : null;
     },
   };
 }

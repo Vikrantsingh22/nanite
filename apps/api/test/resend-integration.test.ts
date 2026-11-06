@@ -119,6 +119,18 @@ describe("resend provider: requests and error bodies (G3, G6, G10, G17)", () => 
     expect(mail).toMatchObject({ id: "em_1", text: "T", messageId: "<m@y.z>", headers: { "message-id": "<m@y.z>", references: "<r@y.z>" } });
   });
 
+  it("getSentMessageId: GET /emails/{id} -> message_id in <...> form (bare ids get brackets, junk is null)", async () => {
+    const s = stub(() => ok({ id: "em_9", message_id: "<010601a1-000000@ap-northeast-1.amazonses.com>" }));
+    expect(await s.provider.getSentMessageId("em_9")).toBe("<010601a1-000000@ap-northeast-1.amazonses.com>");
+    expect(s.calls[0]!.url).toBe("https://api.resend.com/emails/em_9");
+    expect((s.calls[0]!.init.headers as Record<string, string>).Authorization).toBe("Bearer re_test_key");
+    expect(await stub(() => ok({ message_id: "abc@x.example" })).provider.getSentMessageId("e")).toBe("<abc@x.example>");
+    expect(await stub(() => ok({})).provider.getSentMessageId("e")).toBeNull();
+    expect(await stub(() => ok({ message_id: "<a b>\r\nBcc: x" })).provider.getSentMessageId("e")).toBeNull();
+    const nf = (await stub(() => new Response(JSON.stringify({ statusCode: 404, name: "not_found", message: "m" }), { status: 404 })).provider.getSentMessageId("e").catch((e) => e)) as ProviderError;
+    expect(nf.detail).toEqual({ status: 404, name: "not_found" });
+  });
+
   it("parses { statusCode, name, message } bodies: only the status, the name token and retry-after are kept", async () => {
     const body = { statusCode: 403, name: "email_above_quota", message: "SECRET-MESSAGE-TEXT" };
     const s = stub(() => new Response(JSON.stringify(body), { status: 403 }));

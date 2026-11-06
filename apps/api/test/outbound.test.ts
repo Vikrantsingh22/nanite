@@ -452,7 +452,7 @@ describe("signed outbound mail (option B)", () => {
     );
   };
 
-  it("signs with the agent's signer key: v2 headers verify against the ENS record", async () => {
+  it("signs with the agent's signer key: v3 headers verify against the ENS record", async () => {
     await handle.db.delete(sendLog).where(eq(sendLog.agentId, agentId));
     ens.policy = { policy: "any", allow: [], limit: 50 };
     const address = await giveSigner();
@@ -463,9 +463,11 @@ describe("signed outbound mail (option B)", () => {
     expect(b.signature).toBe("signed");
     const m = lastMail();
     expect(Object.keys(m.headers!).sort()).toEqual(
-      ["Message-ID", "X-Nanite-Agent", "X-Nanite-Date", "X-Nanite-Sig-Version", "X-Nanite-Signature"].sort(),
+      ["X-Nanite-Agent", "X-Nanite-Date", "X-Nanite-Message-Id", "X-Nanite-Sig-Version", "X-Nanite-Signature"].sort(),
     );
-    expect(m.headers!["X-Nanite-Sig-Version"]).toBe("2");
+    expect(m.headers).not.toHaveProperty("Message-ID");
+    expect(m.headers!["X-Nanite-Message-Id"]).toMatch(/^<[0-9a-f-]{36}@mail\.nanite\.test>$/);
+    expect(m.headers!["X-Nanite-Sig-Version"]).toBe("3");
     expect(m.headers!["X-Nanite-Signature"]).toMatch(/^0x[0-9a-f]{130}$/);
     expect(await verifyLast()).toEqual({ valid: true, agent: ensName, signer: address, reason: "ok" });
     // Tampering with anything the signature covers breaks it.
@@ -474,6 +476,11 @@ describe("signed outbound mail (option B)", () => {
     }
     const tampered = { ...lastMail().headers!, "X-Nanite-Date": "Mon, 01 Jan 2029 00:00:00 GMT" };
     expect((await verifyNaniteSignature({ headers: tampered, from: m.from, to: m.to[0]!, subject: m.subject, body: m.text! }, { ensClient })).valid).toBe(false);
+    const swapped = { ...lastMail().headers!, "X-Nanite-Message-Id": "<00000000-0000-4000-8000-000000000000@mail.nanite.test>" };
+    expect((await verifyNaniteSignature({ headers: swapped, from: m.from, to: m.to[0]!, subject: m.subject, body: m.text! }, { ensClient })).reason).toBe("signer_mismatch");
+    // The provider replaces Message-ID (Resend/SES): v3 does not care.
+    const replaced = { ...lastMail().headers!, "Message-ID": "<010601abc-0000@eu-west-1.amazonses.com>" };
+    expect((await verifyNaniteSignature({ headers: replaced, from: m.from, to: m.to[0]!, subject: m.subject, body: m.text! }, { ensClient })).valid).toBe(true);
     // Neither the response nor the logs carry the key.
     const all = [JSON.stringify(b), ...logs, ...consoleSpies].join("\n");
     expect(all).not.toContain(signerHex);

@@ -86,7 +86,7 @@ try {
   const outbox = await api.get("/internal/dev/outbox?limit=1", { session: false });
   must(outbox.status === 200 && outbox.json.items?.length === 1, `GET /internal/dev/outbox answered ${outbox.status} (needs DEV_ROUTES=1 and FAKE_RESEND_SEND=1)`);
   const { from, headers } = outbox.json.items[0] as { from: string; headers: Record<string, string> };
-  must(headers["X-Nanite-Sig-Version"] === "2" && headers["X-Nanite-Signature"], "outbound headers carry no v2 signature");
+  must(headers["X-Nanite-Sig-Version"] === "3" && headers["X-Nanite-Signature"] && headers["X-Nanite-Message-Id"], "outbound headers carry no v3 signature");
   say(`    headers: ${Object.keys(headers).sort().join(", ")}`);
 
   const dir = mkdtempSync(join(tmpdir(), "nanite-sig-"));

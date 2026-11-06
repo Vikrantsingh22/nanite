@@ -6,9 +6,13 @@
  * mail.json:
  *   {
  *     "headers": { "X-Nanite-Agent": "...", "X-Nanite-Date": "...", "X-Nanite-Signature": "0x...",
- *                  "X-Nanite-Sig-Version": "2", "Message-ID": "<...>" },
+ *                  "X-Nanite-Sig-Version": "3", "X-Nanite-Message-Id": "<...>" },
  *     "from": "alex.nanitedemo@nanite.test", "to": "friend@example.com", "subject": "...", "body": "..."
  *   }
+ *
+ * Sig-Version 3 (current) signs the X-Nanite-Message-Id header, which providers keep. Sig-Version 2 (legacy) signs
+ * the standard "Message-ID" header (put that in "headers" instead); Resend/Amazon SES REPLACE that header, so v2
+ * mail delivered through Resend fails with signer_mismatch (the verdict then carries a "hint").
  *
  * Prints only the verdict (valid, agent, signer, reason), never the mail fields. Exit code 0 = valid, 1 = invalid,
  * 2 = bad usage or input. The SEPOLIA_RPC_URL env var is used when --rpc is not given.
