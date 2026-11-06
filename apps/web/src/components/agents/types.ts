@@ -22,7 +22,7 @@ export interface JobStep {
 /** GET /agents/:id/status (same step shape as the onboarding claim). */
 export interface AgentJobStatus {
   agentStatus: AgentSummary["status"]
-  kind: "create" | "policy" | "revoke" | "signer" | null
+  kind: "create" | "policy" | "retention" | "revoke" | "signer" | null
   status: "idle" | "queued" | "running" | "done" | "error"
   steps: JobStep[]
   error: { code: string; message: string } | null
@@ -33,6 +33,14 @@ export interface SendPolicyValue {
   policy: SendMode
   allow: string[]
   limit: number
+}
+
+/** GET/PUT /agents/:id/retention (ENS nanite.otp-ttl / mail-ttl / extend / extend-limit). */
+export interface RetentionValue {
+  otpTtlMinutes: number
+  mailTtlHours: number
+  extend: "on" | "off"
+  extendLimit: number
 }
 
 /** GET /agents/:id/signer. `record` is read fresh from ENS (`nanite.signer`). */
@@ -79,6 +87,9 @@ export function agentErrorText(code: string): string {
     chain_unavailable: "The Sepolia node did not answer. Try again in a moment.",
     invalid_allow: "One of the allowlist entries is not valid.",
     invalid_limit: "The daily limit must be a whole number from 0 to 10000.",
+    invalid_otp_ttl: "The code lifetime must be a whole number from 1 to 60 minutes.",
+    invalid_mail_ttl: "The mail lifetime must be from 1 hour to 182 days.",
+    invalid_extend_limit: "The daily extend limit must be a whole number from 0 to 1000.",
     invalid_signer: "That is not a valid Ethereum address.",
     invalid_encryption_key: "That encryption public key is not valid. Paste the base64 line from nanite-mcp keygen.",
     signer_requires_self_custody: "A signer address can only be given for a self-hosted agent.",

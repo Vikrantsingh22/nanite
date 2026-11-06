@@ -87,6 +87,11 @@ export function useMailbox(agentId: string, keys: UnlockedKeys, type: MailType |
     }
   }, [nextBefore, url, toRows])
 
+  /** Update one entity's metadata in place (e.g. its expiry after Keep), without re-decrypting. */
+  const patchEntity = React.useCallback((key: string, patch: Partial<MailEntity>) => {
+    setRows((old) => old?.map((r) => (r.entity.key === key ? { ...r, entity: { ...r.entity, ...patch } } : r)) ?? old)
+  }, [])
+
   React.useEffect(() => {
     alive.current = true
     const map = cache.current
@@ -101,5 +106,5 @@ export function useMailbox(agentId: string, keys: UnlockedKeys, type: MailType |
     }
   }, [reload, pollMs])
 
-  return { rows, error, hasMore: nextBefore !== undefined, loadingMore, loadMore, reload }
+  return { rows, error, hasMore: nextBefore !== undefined, loadingMore, loadMore, reload, patchEntity }
 }

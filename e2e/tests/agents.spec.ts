@@ -28,6 +28,9 @@ function fakeApi(page: Page, opts: { state: "started" | "done"; agents?: Agent[]
     createPolls: -1,
     policy: { policy: "reply-only", allow: [] as string[], limit: 50 },
     putBody: null as Record<string, unknown> | null,
+    retention: { otpTtlMinutes: 5, mailTtlHours: 48, extend: "on", extendLimit: 20 } as { otpTtlMinutes: number; mailTtlHours: number; extend: string; extendLimit: number },
+    retBody: null as Record<string, unknown> | null,
+    retPolls: -1,
     putPolls: -1,
     rotated: 0,
     revoked: false,
@@ -73,6 +76,16 @@ function fakeApi(page: Page, opts: { state: "started" | "done"; agents?: Agent[]
         status: done || s.createPolls > i ? "done" : s.createPolls === i ? "active" : "pending",
         ...(done || s.createPolls > i ? { txHash: "0x" + String(i + 1).repeat(64) } : {}),
       })),
+      error: null,
+    };
+  };
+  const retJob = () => {
+    const done = s.retPolls >= 1;
+    return {
+      agentStatus: "active",
+      kind: "retention",
+      status: done ? "done" : "running",
+      steps: [{ id: "set-retention", label: "Write the retention settings to ENS", status: done ? "done" : "active", ...(done ? { txHash: "0x" + "c".repeat(64) } : {}) }],
       error: null,
     };
   };
@@ -131,7 +144,7 @@ function fakeApi(page: Page, opts: { state: "started" | "done"; agents?: Agent[]
           s.agents.push(agent);
           return json(202, { agent, token: TOKEN, tokenId: "t1", status: { ...createJob(), steps: STEP_DEFS.map(([id, label]) => ({ id, label, status: "pending" })), status: "queued" } });
         }
-        const idm = /^\/agents\/([^/]+)\/(status|send-policy|token|revoke|signer)$/.exec(path);
+        const idm = /^\/agents\/([^/]+)\/(status|send-policy|retention|token|revoke|signer)$/.exec(path);
         if (idm) {
           if (idm[1] !== AGENT_ID) return json(404, { error: "not_found" });
           const sub = idm[2];
@@ -147,6 +160,17 @@ function fakeApi(page: Page, opts: { state: "started" | "done"; agents?: Agent[]
             if (s.signerPolls < 1) s.signerPolls++;
             if (s.signerPolls >= 1) s.signer = { ...s.signer, supported: true, address: s.signerNext, record: "published", onchain: null };
             return json(200, signerJob());
+          }
+          if (sub === "retention" && m === "GET") return json(200, s.retention);
+          if (sub === "retention" && m === "PUT") {
+            s.retBody = req.postDataJSON();
+            s.retention = { ...s.retention, ...(s.retBody as object) } as typeof s.retention;
+            s.retPolls = 0;
+            return json(202, { ...retJob(), status: "queued" });
+          }
+          if (sub === "status" && m === "GET" && s.retPolls >= 0) {
+            if (s.retPolls < 1) s.retPolls++;
+            return json(200, retJob());
           }
           if (sub === "status" && m === "GET") {
             if (s.createPolls >= 0 && s.createPolls < 2) s.createPolls++;
@@ -500,6 +524,51 @@ test("add-agent, self-hosted choice: keygen command, validated public values, MC
   expect(problems.filter((p) => !ignorable(p))).toEqual([]);
 });
 
+for (const width of [1440, 390]) {
+  test(`agent settings: Retention card (lifetimes, agent can extend, daily limit) saved to ENS @${width}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    const problems = watchProblems(page);
+    const api = fakeApi(page, { state: "done", agents: [activeAgent()] });
+    await api.install();
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    await gotoOrFixme(page, `/agents/${AGENT_ID}/settings`);
+    const card = page.locator("div[data-slot='card']", { has: page.getByRole("heading", { level: 2, name: "Retention" }) });
+    await expect(card).toBeVisible();
+    await expect(card.getByText(/mail disappears from arkiv after this time unless you or the agent keep it/i)).toBeVisible();
+    // Defaults read from ENS: 5 min codes, 2 days mail, extend on, 20 per day.
+    await expect(card.getByLabel("One-time code lifetime (minutes)")).toHaveValue("5");
+    await expect(card.getByLabel("Mail lifetime (days)")).toHaveValue("2");
+    await expect(card.getByRole("switch", { name: /keep mail longer/i })).toBeChecked();
+    await expect(card.getByLabel("Extensions per day")).toHaveValue("20");
+    const save = card.getByRole("button", { name: /save retention to ens/i });
+    await expect(save).toBeDisabled();
+    await card.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${OUT}/retention-${width}.png`, fullPage: true });
+    if (width === 1440) await axe(page, "retention");
+
+    // Validation blocks saving.
+    await card.getByLabel("One-time code lifetime (minutes)").fill("99");
+    await expect(card.getByText(/whole number from 1 to 60/i)).toBeVisible();
+    await expect(save).toBeDisabled();
+    await card.getByLabel("One-time code lifetime (minutes)").fill("10");
+    await card.getByLabel("Mail lifetime (days)").fill("183");
+    await expect(save).toBeDisabled();
+    await card.getByLabel("Mail lifetime (days)").fill("7");
+    await card.getByRole("switch", { name: /keep mail longer/i }).click();
+    await expect(card.getByLabel("Extensions per day")).toBeDisabled();
+    await expect(save).toBeEnabled();
+    if (width === 1440) await axe(page, "retention edited");
+    await save.click();
+    await expect(card.getByText("ens://retention")).toBeVisible();
+    expect(api.s.retBody).toEqual({ otpTtlMinutes: 10, mailTtlHours: 168, extend: "off" });
+    await expect(page.getByText("Retention saved to ENS")).toBeAttached({ timeout: 20_000 });
+    await expect(save).toBeDisabled();
+    await page.screenshot({ path: `${OUT}/retention-saved-${width}.png`, fullPage: true });
+    expect(problems.filter((p) => !ignorable(p))).toEqual([]);
+  });
+}
+
 test("agent settings: send policy editor, token rotation, revoke", async ({ page }) => {
   test.setTimeout(90_000);
   const problems = watchProblems(page);
@@ -544,6 +613,7 @@ test("agent settings: send policy editor, token rotation, revoke", async ({ page
   await expect(page.getByText("Policy saved to ENS")).toBeAttached({ timeout: 20_000 });
   await expect(save).toBeDisabled();
   await shot("12-policy-saved");
+  await expect(page.getByRole("button", { name: /save retention to ens/i })).toBeDisabled();
 
   // Token rotation
   await page.getByRole("button", { name: /rotate token/i }).click();

@@ -19,6 +19,8 @@ type InboxRowProps = {
   time: string
   unread?: boolean
   selected?: boolean
+  /** Remaining life ("1 d 23 h"); red when `urgent` (under 6 h). */
+  expiry?: { text: string; urgent: boolean } | null
   onSelect?: () => void
 }
 
@@ -30,6 +32,7 @@ export function InboxRow({
   time,
   unread = false,
   selected = false,
+  expiry,
   onSelect,
 }: InboxRowProps) {
   const { icon: Icon, label } = TYPE[type]
@@ -69,7 +72,17 @@ export function InboxRow({
           </span>
         )}
       </span>
-      <time className="font-mono text-xs text-muted-foreground tnum">{time}</time>
+      <span className="flex flex-col items-end gap-1">
+        <time className="font-mono text-xs text-muted-foreground tnum">{time}</time>
+        {expiry && (
+          <span
+            data-testid="row-expiry"
+            className={cn("font-mono text-[0.6875rem] tnum", expiry.urgent ? "font-medium text-destructive" : "text-muted-foreground")}
+          >
+            {expiry.text === "expired" ? "expired" : `expires in ${expiry.text}`}
+          </span>
+        )}
+      </span>
     </button>
   )
 }

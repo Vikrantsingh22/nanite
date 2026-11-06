@@ -27,6 +27,7 @@ import { api, ApiError } from "@/lib/api"
 import { ETHERSCAN_TX } from "@/lib/config"
 
 import { MailSigning } from "./mail-signing"
+import { RetentionCard } from "./retention-card"
 import { TokenReveal } from "./token-reveal"
 import { agentErrorText, jobLines, type AgentJobStatus, type AgentSummary, type SendMode, type SendPolicyValue } from "./types"
 
@@ -131,6 +132,7 @@ export function AgentSettings({ agentId }: { agentId: string }) {
         <SendPolicyEditor agentId={agent.id} />
       )}
 
+      {agent.status === "active" && <RetentionCard agentId={agent.id} />}
       {agent.status === "active" && <MailSigning agentId={agent.id} />}
       {!revoked && <TokenCard agentId={agent.id} />}
       {!revoked && <RevokeCard agent={agent} onRevoked={load} />}

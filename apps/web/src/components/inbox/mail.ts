@@ -19,6 +19,8 @@ export interface MailEntity {
   nonce: string
   expiresAtBlock: string
   expiresAt: string | null
+  /** False for one-time codes (never extendable). Absent on older servers: derive from the type. */
+  extendable?: boolean
 }
 
 export interface InboxPage {
@@ -93,6 +95,34 @@ export function otpExpiry(e: MailEntity): { expiresAt: number; totalMs: number }
   const expiresAt = Number.isFinite(parsed) ? parsed : e.receivedAt * 1000 + OTP_DEFAULT_TTL_MS
   return { expiresAt, totalMs: Math.max(1000, expiresAt - e.receivedAt * 1000) }
 }
+
+/** Under this much remaining life an expiry is shown as urgent (red). */
+export const EXPIRY_URGENT_MS = 6 * 3_600_000
+
+export interface ExpiryLabel {
+  /** "1 d 23 h", "5 h 12 m", "12 m", "under 1 m" or "expired". */
+  text: string
+  urgent: boolean
+}
+
+/** Remaining life of an entity from its estimated expiry, or null when the server could not estimate it. */
+export function formatExpiry(e: Pick<MailEntity, "expiresAt">, nowMs: number): ExpiryLabel | null {
+  const at = e.expiresAt ? Date.parse(e.expiresAt) : NaN
+  if (!Number.isFinite(at)) return null
+  const left = at - nowMs
+  if (left <= 0) return { text: "expired", urgent: true }
+  const m = Math.floor(left / 60_000)
+  const d = Math.floor(m / 1440)
+  const h = Math.floor((m % 1440) / 60)
+  let text: string
+  if (d >= 1) text = `${d} d ${h} h`
+  else if (m >= 60) text = `${h} h ${m % 60} m`
+  else text = m >= 1 ? `${m} m` : "under 1 m"
+  return { text, urgent: left < EXPIRY_URGENT_MS }
+}
+
+/** Keep (extend) choices, in days. The API accepts 1 to 182. */
+export const KEEP_DAYS = [7, 30, 90, 182] as const
 
 /** True when the body is an HTML document or fragment rather than plain text. */
 export function looksLikeHtml(body: string): boolean {

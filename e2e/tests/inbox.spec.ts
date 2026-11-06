@@ -28,7 +28,8 @@ const AGENTS = [
 const entityKey = (i: number) => "0x" + (i + 1).toString(16).padStart(64, "0");
 
 function installApi(page: Page, opts: { agents: typeof AGENTS | [] }) {
-  const seen = { inboxCalls: [] as string[] };
+  const seen = { inboxCalls: [] as string[], keeps: [] as Array<{ key: string; days: number }> };
+  const kept = new Map<string, string>();
   return {
     seen,
     install: () =>
@@ -40,6 +41,14 @@ function installApi(page: Page, opts: { agents: typeof AGENTS | [] }) {
         if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
         const url = new URL(req.url());
         const path = url.pathname;
+        const ext = /^\/mail\/([^/]+)\/emails\/(0x[0-9a-f]{64})\/extend$/.exec(path);
+        if (ext && req.method() === "POST") {
+          const { days } = req.postDataJSON() as { days: number };
+          seen.keeps.push({ key: ext[2]!, days });
+          const at = new Date(Date.now() + days * 86_400_000).toISOString();
+          kept.set(ext[2]!, at);
+          return json(200, { status: "extended", expiresAtBlock: "999999", expiresAt: at });
+        }
         if (path === "/me") return json(200, { wallet: WALLET, username: "vikrant", ensName: "vikrant.nanitecom.eth", onboardingState: "done", hasKeys: true });
         if (path === "/onboarding/keys") return json(200, { ...fixture.bundle, keyVersion: 1 });
         if (path === "/agents") return json(200, { agents: opts.agents });
@@ -65,7 +74,10 @@ function installApi(page: Page, opts: { agents: typeof AGENTS | [] }) {
               wrappedKeys: e.wrappedKeys,
               nonce: e.nonce,
               expiresAtBlock: "123456",
-              expiresAt: e.type === "otp" ? new Date(Date.now() + 240_000).toISOString() : null,
+              extendable: e.type !== "otp",
+              expiresAt:
+                kept.get(entityKey(i)) ??
+                new Date(Date.now() + (e.type === "otp" ? 240_000 : e.subject === "Welcome to Nanite" ? 47 * 3_600_000 : e.subject === "Weekly digest (HTML)" ? 3 * 3_600_000 : 5 * 86_400_000)).toISOString(),
             }))
             .filter((e) => !type || e.type === type);
           return json(200, { items, skipped: 0 });
@@ -278,5 +290,57 @@ for (const width of [1440, 390]) {
 
     expect(evil).toEqual([]);
     expect(problems.filter((p) => !ignorable(p) && !/evil-/.test(p))).toEqual([]);
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`inbox: expiry shown on every message, red under 6 h, Keep with a day picker on thread/sent mail only @${width}`, async ({ page }) => {
+    test.setTimeout(120_000);
+    const problems = watchProblems(page);
+    await mockWallet(page);
+    const api = installApi(page, { agents: AGENTS });
+    await api.install();
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    await gotoOrFixme(page, "/dashboard");
+    await unlockViaLink(page, /unlock/i);
+    await page.getByRole("link", { name: /open inbox/i }).first().click();
+    const list = page.getByRole("navigation", { name: "Messages" });
+    await expect(list.getByText("Welcome to Nanite")).toBeVisible({ timeout: 30_000 });
+
+    // Rows: remaining life on every message; red under 6 hours.
+    const welcomeRow = list.getByRole("button", { name: /welcome to nanite/i });
+    const digestRow = list.getByRole("button", { name: /weekly digest/i });
+    await expect(welcomeRow.getByTestId("row-expiry")).toHaveText(/^expires in 1 d 2[23] h$/);
+    await expect(welcomeRow.getByTestId("row-expiry")).not.toHaveClass(/text-destructive/);
+    await expect(digestRow.getByTestId("row-expiry")).toHaveText(/^expires in [23] h \d+ m$/);
+    await expect(digestRow.getByTestId("row-expiry")).toHaveClass(/text-destructive/);
+
+    // A one-time code has no Keep action.
+    await list.getByText("Your Acme verification code").click();
+    await expect(page.getByTestId("detail-expiry")).toContainText(/expires in \d+ m/);
+    await expect(page.getByTestId("keep-button")).toHaveCount(0);
+    if (width === 390) await page.getByRole("button", { name: /back to inbox/i }).click();
+
+    // Digest (urgent): red detail line.
+    await list.getByText("Weekly digest (HTML)").click();
+    await expect(page.getByTestId("detail-expiry")).toHaveClass(/text-destructive/);
+    if (width === 390) await page.getByRole("button", { name: /back to inbox/i }).click();
+
+    // Keep the welcome mail for 30 days.
+    await list.getByText("Welcome to Nanite").click();
+    await expect(page.getByTestId("detail-expiry")).toContainText(/expires in 1 d 2[23] h/);
+    await page.getByTestId("keep-button").click();
+    const group = page.getByRole("group", { name: "Keep for" });
+    for (const d of [7, 30, 90, 182]) await expect(group.getByRole("button", { name: `${d} days` })).toBeVisible();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOTS}/keep-picker-${width}.png`, fullPage: true });
+    if (width === 1440) await axe(page, "keep picker");
+    await group.getByRole("button", { name: "30 days" }).click();
+    await expect(page.getByTestId("keep-message")).toHaveText("Kept for 30 more days.");
+    expect(api.seen.keeps).toEqual([{ key: entityKey(0), days: 30 }]);
+    await expect(page.getByTestId("detail-expiry")).toContainText(/expires in (29 d 23|30 d 0) h/);
+    await shot(page, "keep-done", width);
+    if (width === 1440) await axe(page, "keep done");
+    expect(problems.filter((p) => !ignorable(p))).toEqual([]);
   });
 }

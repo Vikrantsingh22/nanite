@@ -18,7 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useKeys } from "@/lib/key-context"
 
 import { SandboxedHtml } from "./html-frame"
-import { formatTime, looksLikeHtml, otpExpiry, shortSender, type MailType } from "./mail"
+import { KeepControl } from "./keep-control"
+import { formatExpiry, formatTime, looksLikeHtml, otpExpiry, shortSender, type MailEntity, type MailType } from "./mail"
 import { useMailbox, type MailRow, type MailboxError } from "./use-mailbox"
 
 const ERRORS: Record<MailboxError, string> = {
@@ -102,7 +103,7 @@ function Loading() {
 }
 
 function MailPanel({ agentId, keys }: { agentId: string; keys: Keys }) {
-  const { rows, error, hasMore, loadingMore, loadMore } = useMailbox(agentId, keys, undefined)
+  const { rows, error, hasMore, loadingMore, loadMore, patchEntity } = useMailbox(agentId, keys, undefined)
   const [selected, setSelected] = React.useState<string | null>(null)
   const now = useNow(30_000)
   const current = rows?.find((r) => r.entity.key === selected) ?? null
@@ -134,6 +135,7 @@ function MailPanel({ agentId, keys }: { agentId: string; keys: Keys }) {
               {...(r.dec ? { subject: r.dec.ok ? r.dec.mail.subject || "(no subject)" : `Cannot decrypt: ${r.dec.reason}` } : {})}
               type={r.entity.type}
               time={now === null ? "" : formatTime(r.entity.receivedAt, now)}
+              expiry={now === null ? null : formatExpiry(r.entity, now)}
               selected={r.entity.key === selected}
               onSelect={() => setSelected(r.entity.key)}
             />
@@ -148,7 +150,13 @@ function MailPanel({ agentId, keys }: { agentId: string; keys: Keys }) {
         </nav>
         <section aria-label="Message" className={`${current ? "block" : "hidden md:block"} min-w-0`}>
           {current ? (
-            <MessageDetail row={current} onBack={() => setSelected(null)} />
+            <MessageDetail
+              row={current}
+              agentId={agentId}
+              now={now}
+              onBack={() => setSelected(null)}
+              onKept={(patch) => patchEntity(current.entity.key, patch)}
+            />
           ) : (
             <div className="hidden rounded-lg border border-dashed p-8 text-center font-mono text-xs text-muted-foreground md:block">
               select a message
@@ -179,8 +187,22 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 const TYPE_LABEL: Record<MailType, string> = { otp: "otp", conversation: "thread", sent: "sent" }
 
-function MessageDetail({ row, onBack }: { row: MailRow; onBack: () => void }) {
+function MessageDetail({
+  row,
+  agentId,
+  now,
+  onBack,
+  onKept,
+}: {
+  row: MailRow
+  agentId: string
+  now: number | null
+  onBack: () => void
+  onKept: (patch: Pick<MailEntity, "expiresAtBlock" | "expiresAt">) => void
+}) {
   const { entity, dec } = row
+  const expiry = now === null ? null : formatExpiry(entity, now)
+  const extendable = entity.extendable ?? entity.type !== "otp"
   const [asText, setAsText] = React.useState(false)
   const when = new Date(entity.receivedAt * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC"
   const mail = dec?.ok ? dec.mail : null
@@ -247,10 +269,22 @@ function MessageDetail({ row, onBack }: { row: MailRow; onBack: () => void }) {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3">
+        {expiry && (
+          <p
+            data-testid="detail-expiry"
+            className={`font-mono text-xs tnum ${expiry.urgent ? "font-medium text-destructive" : "text-muted-foreground"}`}
+          >
+            {expiry.text === "expired" ? "expired" : `expires in ${expiry.text}`}
+          </p>
+        )}
+        {extendable && <KeepControl agentId={agentId} entity={entity} onKept={onKept} />}
+      </div>
+
       <footer className="flex flex-col gap-2 border-t pt-3">
         <ArkivEntityChip entityKey={entity.key} ownedByYou creator={entity.creator} />
         <p className="text-xs text-muted-foreground">
-          The explorer shows only ciphertext. The subject and body above were decrypted in this tab with your key.
+          The explorer shows only ciphertext. The subject and body above were decrypted in this tab with your key. Mail disappears from Arkiv after its lifetime unless you or the agent keep it.
         </p>
       </footer>
     </article>
