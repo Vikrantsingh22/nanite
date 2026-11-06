@@ -13,7 +13,7 @@ const MAX_BODY_BYTES = 512 * 1024;
  * documented, so the request never waits for it. WEBHOOK_SYNC=1 (dev/test, ignored in production) restores the old
  * "wait for the whole pipeline" behaviour, which the live scripts rely on to read `{"status":"stored"}`.
  */
-export function webhookRoutes(deps: Pick<AppDeps, "inbound">, log: (line: string) => void) {
+export function webhookRoutes(deps: Pick<AppDeps, "inbound" | "domains">, log: (line: string) => void) {
   const app = new Hono<{ Variables: { requestId: string } }>();
   const processor =
     deps.inbound && !deps.inbound.sync
@@ -39,6 +39,18 @@ export function webhookRoutes(deps: Pick<AppDeps, "inbound">, log: (line: string
       const requestId = c.get("requestId");
       const logFields = (fields: Record<string, unknown>) =>
         log(JSON.stringify({ level: fields.outcome === "failed" ? "error" : "info", requestId, ...fields }));
+
+      // Domain lifecycle events (custom domain onboarding). Never touches the email pipeline.
+      if (event.kind === "domain") {
+        if (!deps.domains) return c.json({ status: "ignored" }, 200);
+        try {
+          const outcome = await deps.domains.applyWebhook({ type: event.type, domainId: event.domainId, status: event.status, records: event.records });
+          return c.json({ status: outcome }, 200);
+        } catch {
+          // Not acknowledged: Resend retries the event.
+          return c.json({ error: "processing_failed", requestId }, 500);
+        }
+      }
 
       if (!processor) {
         const result = await handleInboundEvent(inbound, event, logFields);

@@ -4,6 +4,7 @@ import {
   createAuthNonce,
   createSession,
   findSessionUser,
+  getUserDomain,
   isPendingUsername,
   revokeSession,
   upsertUserByWallet,
@@ -11,6 +12,7 @@ import {
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, setCookie } from "hono/cookie";
+import { domainSummary, type DomainSummary } from "../domains/view.js";
 import { checkSiwe } from "../auth/siwe.js";
 import { readSessionId, requireSession, type AuthVars } from "../auth/session.js";
 import { SESSION_COOKIE, type AuthDeps } from "../auth/types.js";
@@ -20,12 +22,13 @@ const DEFAULT_SESSION_TTL_S = 7 * 24 * 3600;
 const SIG_RE = /^0x[0-9a-fA-F]{130}$/;
 
 type MeUser = { walletAddress: string; username: string; ensName: string | null; onboardingState: string };
-export const meBody = (user: MeUser, hasKeys: boolean) => ({
+export const meBody = (user: MeUser, hasKeys: boolean, domain: DomainSummary | null = null) => ({
   wallet: user.walletAddress,
   username: isPendingUsername(user.username) ? null : user.username,
   ensName: user.ensName,
   onboardingState: user.onboardingState,
   hasKeys,
+  domain,
 });
 
 export function authRoutes(deps: AuthDeps, webOrigin: string) {
@@ -66,7 +69,7 @@ export function authRoutes(deps: AuthDeps, webOrigin: string) {
     });
     c.header("Cache-Control", "no-store");
     const found = await findSessionUser(deps.db, session.id);
-    return c.json(meBody(user, found?.hasKeys ?? false));
+    return c.json(meBody(user, found?.hasKeys ?? false, domainSummary(await getUserDomain(deps.db, user.id))));
   });
 
   app.post("/auth/logout", async (c) => {
@@ -78,10 +81,10 @@ export function authRoutes(deps: AuthDeps, webOrigin: string) {
     return c.json({ ok: true });
   });
 
-  app.get("/me", requireSession(deps, webOrigin), (c) => {
+  app.get("/me", requireSession(deps, webOrigin), async (c) => {
     const { user, hasKeys } = c.get("auth");
     c.header("Cache-Control", "no-store");
-    return c.json(meBody(user, hasKeys));
+    return c.json(meBody(user, hasKeys, domainSummary(await getUserDomain(deps.db, user.id))));
   });
 
   return app;

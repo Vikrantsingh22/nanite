@@ -1,10 +1,11 @@
 import { keyId as computeKeyId, ready } from "@nanite/crypto";
-import { getUserKeys, insertUserKeys, isPendingUsername, isUsernameTaken, markOnboardingDone, setUsername } from "@nanite/db";
+import { getUserDomain, getUserKeys, insertUserKeys, isPendingUsername, isUsernameTaken, markOnboardingDone, setUsername } from "@nanite/db";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { createClaimRunner, type ClaimJob } from "../auth/jobs.js";
 import { requireSession, type AuthVars } from "../auth/session.js";
 import type { AuthDeps } from "../auth/types.js";
+import { domainSummary } from "../domains/view.js";
 
 // ---- key bundle validation (everything binary travels as standard base64) ----
 const KEY_FIELDS = [
@@ -86,7 +87,7 @@ const claimBody = (job: ClaimJob | undefined, fallback?: { username: string | nu
     ? { status: job.status, username: job.username, steps: job.steps, error: job.error ?? null }
     : { status: fallback && (fallback.state === "name_claimed" || fallback.state === "done") ? "done" : "idle", username: fallback?.username ?? null, steps: [], error: null };
 
-export function onboardingRoutes(deps: AuthDeps, webOrigin: string, log: (line: string) => void) {
+export function onboardingRoutes(deps: AuthDeps, webOrigin: string, log: (line: string) => void, sharedMailDomain?: string) {
   const app = new Hono<AuthVars>();
   const runner = deps.chain ? createClaimRunner(deps.db, deps.chain, log) : undefined;
   app.use("*", requireSession(deps, webOrigin));
@@ -185,11 +186,15 @@ export function onboardingRoutes(deps: AuthDeps, webOrigin: string, log: (line: 
       ensName: user.ensName,
       canClaim: !!deps.chain?.canClaim,
       claim: claimBody(runner?.get(user.id), { username, state: user.onboardingState }),
+      domain: domainSummary(await getUserDomain(deps.db, user.id)),
+      // The zero-setup option of the domain step: agents get <agent>.<user>@<this domain>.
+      sharedMailDomain: (sharedMailDomain?.trim() || "nanite.test").toLowerCase(),
     });
   });
 
   app.post("/onboarding/complete", async (c) => {
     const { user } = c.get("auth");
+    // The mail domain is optional: onboarding completes without a verified domain (agents then use the shared domain).
     if (user.onboardingState === "done") return c.json({ onboardingState: "done" });
     if (!(await markOnboardingDone(deps.db, user.id))) return c.json({ error: "wrong_state" }, 409);
     return c.json({ onboardingState: "done" });

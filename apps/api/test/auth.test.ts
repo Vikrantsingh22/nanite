@@ -138,6 +138,7 @@ describe("SIWE sign-in", () => {
       ensName: null,
       onboardingState: "started",
       hasKeys: false,
+      domain: null,
     });
     expect((await authed(app, s.cookie, "/auth/logout", { method: "POST" })).status).toBe(200);
     expect((await authed(app, s.cookie, "/me")).status).toBe(401);
@@ -330,6 +331,7 @@ describe("username claim", () => {
       expect(st.ensName).toBe(`${name}.nanitecom.eth`);
       expect(st.claim.steps.map((x) => x.txHash)).toEqual(["0xaaa", "0xbbb", "0xccc"]);
     });
+    // The mail domain is optional: finishing needs no domain (T3.6).
     expect((await authed(app, s.cookie, "/onboarding/complete", { method: "POST" })).status).toBe(200);
     expect(((await (await authed(app, s.cookie, "/me")).json()) as { username: string; onboardingState: string })).toMatchObject({ username: name, onboardingState: "done" });
   });

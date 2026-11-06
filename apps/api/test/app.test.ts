@@ -124,6 +124,7 @@ describe("env", () => {
       devRoutes: false,
       authChainId: 11155111,
       dailyMailQuota: 90,
+      resendDefaultRegion: "ap-northeast-1",
     });
   });
 

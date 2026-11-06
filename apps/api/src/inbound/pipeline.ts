@@ -80,7 +80,7 @@ type Log = (fields: Record<string, unknown>) => void;
 
 /** Phase 1 + 2 inline. Same contract as before the async split. */
 export async function handleInboundEvent(deps: InboundDeps, event: InboundEvent, log: Log): Promise<InboundResult> {
-  if (event.kind === "ignored") return { http: 200, status: "ignored" };
+  if (event.kind === "ignored" || event.kind === "domain") return { http: 200, status: "ignored" };
   const accepted = await acceptInboundEvent(deps, event, log);
   if (accepted.status !== "accepted") return { http: 200, status: accepted.status };
   return processInboundEventById(deps, accepted.eventRowId, log);

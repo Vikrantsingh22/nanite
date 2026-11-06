@@ -10,7 +10,7 @@
  * public key and cannot decrypt for it.
  */
 import { generateUserKeypair, keyId as computeKeyId, ready } from "@nanite/crypto";
-import { countMailSince, utcDayStart } from "@nanite/db";
+import { countMailSince, ensureUserMailDomain, getUserDomain, utcDayStart } from "@nanite/db";
 import { isSendPolicyMode, isValidAllowEntry, MAX_SEND_LIMIT } from "@nanite/ens";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -156,8 +156,15 @@ export function agentRoutes(deps: AuthDeps, webOrigin: string, log: (line: strin
       // Mail-signing key (option B): only for custody = nanite, where the server already holds the agent's keys.
       signer = await generateSealedSigner(cfg.masterKey!, id);
     }
-    const domain = await ensureSharedDomain(deps.db, mailDomain);
-    const email = `${name}.${user.username}@${mailDomain}`;
+    // The mail domain is optional. Mailbox on the user's own domain only while it is VERIFIED; otherwise (no domain, or
+    // still pending) the shared `<agent>.<user>@SHARED_MAIL_DOMAIN` address. Existing agents keep their address when a
+    // domain verifies later (no migration of old agents).
+    const found = await getUserDomain(deps.db, user.id);
+    const userDomain = found?.status === "verified" ? found : null;
+    const domain = userDomain
+      ? await ensureUserMailDomain(deps.db, user.id, userDomain.name, userDomain.resendDomainId)
+      : await ensureSharedDomain(deps.db, mailDomain);
+    const email = userDomain ? `${name}@${userDomain.name}` : `${name}.${user.username}@${mailDomain}`;
     const ins = await insertAgentWithMailbox(deps.db, {
       id,
       userId: user.id,

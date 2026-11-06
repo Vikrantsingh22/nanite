@@ -6,6 +6,8 @@ import type { AuthDeps } from "./auth/types.js";
 import { agentRoutes, type AgentsConfig } from "./routes/agents.js";
 import { authRoutes } from "./routes/auth.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
+import { domainRoutes } from "./routes/domains.js";
+import type { DomainService } from "./domains/service.js";
 import { devOutboxRoutes, devRoutes, type DevInbox, type DevOutbox } from "./routes/dev.js";
 import { healthRoutes } from "./routes/health.js";
 import { mailRoutes, type MailDeps } from "./routes/mail.js";
@@ -34,6 +36,8 @@ export interface AppDeps {
   agents?: AgentsConfig;
   /** Encrypted mail proxy for the browser (/mail/*, session auth). Needs `auth`. */
   mail?: MailDeps;
+  /** Custom domain onboarding (/onboarding/domain*, Resend domain.* webhook events). When absent the routes answer 503. */
+  domains?: DomainService;
 }
 
 type AppEnv = { Variables: { requestId: string } };
@@ -91,7 +95,8 @@ export function createApp(deps: AppDeps) {
   if (deps.v1) app.route("/", v1Routes(deps.v1));
   if (deps.auth) {
     app.route("/", authRoutes(deps.auth, deps.webOrigin));
-    app.route("/", onboardingRoutes(deps.auth, deps.webOrigin, log));
+    app.route("/", domainRoutes(deps.auth, deps.webOrigin, deps.domains));
+    app.route("/", onboardingRoutes(deps.auth, deps.webOrigin, log, deps.agents?.sharedMailDomain));
     app.route("/", agentRoutes(deps.auth, deps.webOrigin, log, deps.agents));
     if (deps.mail) app.route("/", mailRoutes(deps.auth, deps.webOrigin, deps.mail));
   }

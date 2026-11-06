@@ -10,6 +10,11 @@ import type { DevInbox, DevOutbox } from "./routes/dev.js";
 import { loadEnv, sharedMailDomainWarning } from "./env.js";
 import { createEnsServiceFromConfig, loadEnsConfig } from "@nanite/ens";
 import { createFakeMailProvider } from "./mail/fake.js";
+import { createDohResolver } from "./domains/dns.js";
+import { createFakeDns, createFakeResendDomains } from "./domains/fake.js";
+import { createResendDomains } from "./domains/resend-domains.js";
+import { createDomainService } from "./domains/service.js";
+import { createDomainVerifier } from "./domains/verifier.js";
 import { createResendProvider } from "./mail/resend.js";
 import type { InboundDeps } from "./inbound/pipeline.js";
 import { createInboundProcessor } from "./inbound/processor.js";
@@ -128,6 +133,24 @@ if (inboundDeps && inboundProcessor) inboundDeps.processor = inboundProcessor;
 // Crash recovery: re-process events left received / processing / failed (bounded attempts), now and every minute.
 const stopSweeper = inboundProcessor?.startSweeper();
 
+// Custom domain onboarding (T3.6): needs the Resend key (or the dev fakes). The verifier is a single in-process loop;
+// all its state is in Postgres, so a restart loses nothing.
+const fakeDomains = process.env.FAKE_RESEND_DOMAINS === "1" && process.env.NODE_ENV !== "production";
+if (fakeDomains) console.warn("FAKE_RESEND_DOMAINS=1: user domains use an in-memory fake Resend and fake DNS (dev only)");
+const domainService =
+  env.resendApiKey || fakeDomains
+    ? createDomainService({
+        db: handle.db,
+        resend: fakeDomains ? createFakeResendDomains() : createResendDomains({ apiKey: env.resendApiKey! }),
+        dns: fakeDomains ? createFakeDns() : createDohResolver(),
+        defaultRegion: env.resendDefaultRegion,
+        reservedDomains: [...new Set(["nanitecom.itsvikrant.tech", sharedMailDomain?.toLowerCase() ?? ""].filter(Boolean))],
+        log: (line) => console.log(line),
+      })
+    : undefined;
+const domainVerifier = domainService ? createDomainVerifier({ db: handle.db, service: domainService, log: (line) => console.log(line) }) : undefined;
+const stopDomainVerifier = domainVerifier?.start();
+
 const PING_TIMEOUT_MS = 3000;
 const app = createApp({
   db: {
@@ -146,6 +169,7 @@ const app = createApp({
   webOrigin: env.webOrigin,
   version: pkg.version,
   ...(inboundDeps ? { inbound: inboundDeps } : {}),
+  ...(domainService ? { domains: domainService } : {}),
   ...(devInbox ? { devInbox } : {}),
   ...(devOutbox ? { devOutbox } : {}),
   auth: {
@@ -187,6 +211,7 @@ async function shutdown(signal: string) {
   const force = setTimeout(() => process.exit(1), 10_000);
   force.unref();
   stopSweeper?.();
+  stopDomainVerifier?.();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   // Let the event being processed finish (the rest is picked up by the sweep after the next start).
   if (inboundProcessor) await Promise.race([inboundProcessor.idle(), new Promise<void>((r) => setTimeout(r, 7000))]);

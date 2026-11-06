@@ -1,4 +1,5 @@
 import { parseMasterKey } from "./agent-api/keys.js";
+import { isResendRegion, RESEND_REGIONS, type ResendRegion } from "./domains/resend-domains.js";
 
 export interface Env {
   port: number;
@@ -25,6 +26,8 @@ export interface Env {
   authChainId: number;
   /** DAILY_MAIL_QUOTA: Nanite-wide cap on mails sent + received per UTC day (default 90; Resend free tier is 100). */
   dailyMailQuota: number;
+  /** RESEND_DEFAULT_REGION: region of newly created user domains (default ap-northeast-1). */
+  resendDefaultRegion: ResendRegion;
 }
 
 /**
@@ -90,6 +93,9 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
   const rawQuota = source.DAILY_MAIL_QUOTA?.trim() || "90";
   const dailyMailQuota = /^\d{1,6}$/.test(rawQuota) ? Number(rawQuota) : NaN;
   if (!Number.isInteger(dailyMailQuota)) problems.push("DAILY_MAIL_QUOTA must be a whole number (default 90)");
+  const rawRegion = source.RESEND_DEFAULT_REGION?.trim() || "ap-northeast-1";
+  if (!isResendRegion(rawRegion)) problems.push(`RESEND_DEFAULT_REGION must be one of ${RESEND_REGIONS.join(", ")}`);
+  const resendDefaultRegion: ResendRegion = isResendRegion(rawRegion) ? rawRegion : "ap-northeast-1";
   const devRoutes = source.DEV_ROUTES?.trim() === "1" && source.NODE_ENV !== "production";
   let naniteMasterKey: Uint8Array | undefined;
   if (source.NANITE_MASTER_KEY?.trim()) {
@@ -119,5 +125,6 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     apiPublicUrl: source.API_PUBLIC_URL?.trim() || undefined,
     authChainId,
     dailyMailQuota,
+    resendDefaultRegion,
   };
 }
