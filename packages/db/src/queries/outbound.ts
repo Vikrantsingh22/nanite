@@ -3,7 +3,7 @@
  * policy snapshot; arkiv_writes (kind = "sent", webhook_event_id/mailbox_id null) is the sent-copy ledger,
  * keyed by payload_ref = "send:<send_log.id>". No addresses, subjects or bodies are ever stored here.
  */
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.js";
 import { agents, arkivWrites, mailboxes, sendLog, userKeys, users, webhookEvents } from "../schema.js";
 
@@ -142,6 +142,22 @@ export async function insertSendLog(
 
 export async function setSendLogProviderId(db: Db, sendLogId: string, providerMessageId: string) {
   await db.update(sendLog).set({ providerMessageId }).where(eq(sendLog.id, sendLogId));
+}
+
+/**
+ * A send that ultimately failed at the provider: the reserved "allowed" row is turned into a "denied" one
+ * (reason `send_failed`, plus the fixed error token), so it counts toward neither the per-agent cap nor the
+ * Nanite-wide quota (both count allowed rows only). No schema change: the decision enum and the snapshot
+ * already exist. Rows that already carry a provider message id are left alone.
+ */
+export async function markSendFailed(db: Db, sendLogId: string, errorCode: string) {
+  await db
+    .update(sendLog)
+    .set({
+      policyDecision: "denied",
+      policySnapshot: sql`coalesce(${sendLog.policySnapshot}, '{}'::jsonb) || ${JSON.stringify({ reason: "send_failed", sendFailed: true, error: errorCode })}::jsonb`,
+    })
+    .where(and(eq(sendLog.id, sendLogId), eq(sendLog.policyDecision, "allowed"), isNull(sendLog.providerMessageId)));
 }
 
 /** Sent-copy ledger row for a send (idempotent: one row per send_log id). */

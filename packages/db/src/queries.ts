@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, type SQL } from "drizzle-orm";
 import type { Db } from "./client.js";
 import { agents, mailboxes, userKeys, users, webhookEvents } from "./schema.js";
 
@@ -9,6 +9,15 @@ import { agents, mailboxes, userKeys, users, webhookEvents } from "./schema.js";
  * agent revocation (both are returned).
  */
 export async function findMailboxByAddress(db: Db, address: string) {
+  return findMailbox(db, eq(mailboxes.address, address.trim().toLowerCase()));
+}
+
+/** Same routing row as findMailboxByAddress, by mailbox id (used when processing a stored inbound event). */
+export async function findMailboxById(db: Db, mailboxId: string) {
+  return findMailbox(db, eq(mailboxes.id, mailboxId));
+}
+
+async function findMailbox(db: Db, where: SQL) {
   const rows = await db
     .select({
       mailboxId: mailboxes.id,
@@ -29,7 +38,7 @@ export async function findMailboxByAddress(db: Db, address: string) {
     .innerJoin(users, eq(users.id, mailboxes.userId))
     .innerJoin(agents, eq(agents.id, mailboxes.agentId))
     .leftJoin(userKeys, eq(userKeys.userId, users.id))
-    .where(eq(mailboxes.address, address.trim().toLowerCase()))
+    .where(where)
     .limit(1);
   return rows[0] ?? null;
 }
