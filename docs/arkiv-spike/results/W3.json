@@ -1,0 +1,226 @@
+[
+  {
+    "at": "2026-11-05T15:46:50.974Z",
+    "test": "A",
+    "txHash": "0xa4e406cdd7f719695e66b355dfed6171a4d8006b996915df4058cf26603eab97",
+    "entityKey": "0x3f9e5fa3ecf35adababaa7ca8903d3e18a83290ecca6af25df53a42a989085cd",
+    "owner": "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+    "creator": "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+    "ownerIsOperator": true,
+    "creatorIsOperator": true,
+    "ownedByUserQueryCount": 4,
+    "ownedByUserContainsKey": false,
+    "createdByOperatorQueryCount": 2,
+    "createdByOperatorContainsKey": true
+  },
+  {
+    "at": "2026-11-05T15:47:01.492Z",
+    "test": "B-single",
+    "txHash": "0xba5a5062d74cd4441c6243197fbff58290778fd4e049701f8083a31d5db863a6",
+    "entityKey": "0xd4e93539db6c6516dc9def279143c91bab06076fa4376dc4d795088799c90684",
+    "predictedKeyMatches": true,
+    "ownershipChanges": [
+      "0xd4e93539db6c6516dc9def279143c91bab06076fa4376dc4d795088799c90684"
+    ],
+    "owner": "0x57514B238B7Ffc93bA92028b3F5EF96209478186",
+    "creator": "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+    "ownerIsUser": true,
+    "creatorIsOperator": true
+  },
+  {
+    "at": "2026-11-05T15:47:17.288Z",
+    "test": "B-three",
+    "txHash": "0xb4a3031017a99ba383923aa668a6a6943a0bd4a7edd25040ad22cb76e150e037",
+    "singleTx": true,
+    "entityKeys": [
+      "0x810f8ad93b6d1d70035ce7dacd3ef73bfb3e244792fb2d30c13d377f5de99ad6",
+      "0x4020e5a472425a35a342f64fdbc586c3e8dcf9c6a530ab270359cf0f86aa43bd",
+      "0x5b3823a582eb9a236f6ed0d0ee5080ce64c67dfaba121a499e3094702979f72d"
+    ],
+    "predictedKeysMatch": true,
+    "owners": [
+      "0x57514B238B7Ffc93bA92028b3F5EF96209478186",
+      "0x57514B238B7Ffc93bA92028b3F5EF96209478186",
+      "0x57514B238B7Ffc93bA92028b3F5EF96209478186"
+    ],
+    "creators": [
+      "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+      "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+      "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F"
+    ],
+    "allOwnedByUser": true,
+    "allCreatedByOperator": true
+  },
+  {
+    "at": "2026-11-05T15:47:19.329Z",
+    "test": "B-query",
+    "ownedByUserAndCreatedByOperatorCount": 8
+  },
+  {
+    "at": "2026-11-05T15:47:50.168Z",
+    "test": "C",
+    "patchedEntityKey": "0x810f8ad93b6d1d70035ce7dacd3ef73bfb3e244792fb2d30c13d377f5de99ad6",
+    "extendedEntityKey": "0x4020e5a472425a35a342f64fdbc586c3e8dcf9c6a530ab270359cf0f86aa43bd",
+    "deletedEntityKey": "0x5b3823a582eb9a236f6ed0d0ee5080ce64c67dfaba121a499e3094702979f72d",
+    "operatorPatch": {
+      "failed": true,
+      "error": "Transaction failed: entity 0x810f8ad9…e99ad6 is owned by 0x57514B238B7Ffc93bA92028b3F5EF96209478186, not 0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F"
+    },
+    "operatorDelete": {
+      "failed": true,
+      "error": "Transaction failed: entity 0x810f8ad9…e99ad6 is owned by 0x57514B238B7Ffc93bA92028b3F5EF96209478186, not 0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F"
+    },
+    "operatorExtend": {
+      "failed": true,
+      "error": "Transaction failed: entity 0x810f8ad9…e99ad6 is owned by 0x57514B238B7Ffc93bA92028b3F5EF96209478186, not 0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F"
+    },
+    "operatorChangeOwnership": {
+      "failed": true,
+      "error": "Transaction failed: entity 0x810f8ad9…e99ad6 is owned by 0x57514B238B7Ffc93bA92028b3F5EF96209478186, not 0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F"
+    },
+    "userPatch": {
+      "ok": true,
+      "txHash": "0x81fd855f4b443286e5902a23a81353533608648c7aa4454c7f00299537a2b773"
+    },
+    "userExtend": {
+      "ok": true,
+      "txHash": "0xb51605aabb982f7f35d394cd424f12869d09510f826ea25ce3e80286338aa754"
+    },
+    "userDelete": {
+      "ok": true,
+      "txHash": "0x2d29f20a0045b9847a3725c3e836c6b6a5aa8bddf14876c5c2f9d8a0a2ce5f8b",
+      "goneAfter": true
+    },
+    "ownerAfterPatch": "0x57514B238B7Ffc93bA92028b3F5EF96209478186"
+  },
+  {
+    "at": "2026-11-05T15:48:18.511Z",
+    "test": "D",
+    "txHash": "0x97cae05a9a39ab2f1dca0add6b8281040489756cf532ff71412156f270c10079",
+    "entityKey": "0x3c6b8b3f5f5fe20dd2496a4c2d39dc7b28cbbf7461e35c9288f015d5424424a6",
+    "flags": {
+      "readonly": false,
+      "permissionlessExtension": true,
+      "raw": 2
+    },
+    "owner": "0x57514B238B7Ffc93bA92028b3F5EF96209478186",
+    "creator": "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+    "operatorExtendFailed": false,
+    "operatorExtendTx": "0xc6a6ed9194944b6c0d151b65d524fa85cacf0dabb702506bdc5e3df422b5b7db",
+    "operatorPatchFailed": true,
+    "operatorPatchError": "Transaction failed: entity 0x3c6b8b3f…4424a6 is owned by 0x57514B238B7Ffc93bA92028b3F5EF96209478186, not 0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+    "operatorDeleteFailed": true,
+    "operatorDeleteError": "Transaction failed: entity 0x3c6b8b3f…4424a6 is owned by 0x57514B238B7Ffc93bA92028b3F5EF96209478186, not 0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F"
+  },
+  {
+    "at": "2026-11-05T15:48:35.223Z",
+    "test": "E1-stale-prediction",
+    "interloperTx": "0x91ed64aa588775434722d32c5dfdf19d31d41db2a2580a8ff5d5d07f97898360",
+    "interloperKey": "0x77763b1987ffa59fb30b987be0e2678f41f56dadebeca86e4cc92aa899cf8f37",
+    "stalePredictedKey": "0x0864938e66ef83101cf27ccc7e948b82fd804c72d7246a631caaa848e0b44467",
+    "nonceAfterInterloper": "12",
+    "staleBatchFailed": true,
+    "error": "Transaction failed: no entity 0x0864938e…b44467 — it may have been deleted, or have expired"
+  },
+  {
+    "at": "2026-11-05T15:49:02.059Z",
+    "test": "E2-concurrent",
+    "results": [
+      {
+        "ok": false,
+        "error": "Transaction failed: Execution error without revert data"
+      },
+      {
+        "ok": true,
+        "txHash": "0x75f66fb0f9bf8e1eec5d83bf48947b546307efce9920444a88ee7995761d8203",
+        "created": [
+          "0xd2ad86c8b1d53108cc79a7d6f9c43ba8a1710ab8593a5c44601b8418c5f37270"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "predictedKey": "0x48b315fdecd87f17029dac7427792c41a4d9083a372a4a194b4b7d8642ea5987",
+        "exists": false
+      },
+      {
+        "predictedKey": "0xd2ad86c8b1d53108cc79a7d6f9c43ba8a1710ab8593a5c44601b8418c5f37270",
+        "exists": true,
+        "owner": "0x57514B238B7Ffc93bA92028b3F5EF96209478186"
+      }
+    ]
+  },
+  {
+    "at": "2026-11-05T15:49:03.927Z",
+    "test": "E3-explicit-salt",
+    "fixedSalt": "12345",
+    "nonce": "13",
+    "keyAtNonce": "0xcea206331dad699ca0d905cdec9733769b2d4507392ac1bcedb8775332817833",
+    "keyAtNoncePlus1": "0x7a672f16ae510af527e68ffd8b9fccdaa4523ca3fca93c4185b8b241e1e04e73",
+    "differ": true,
+    "note": "same explicit salt gives different keys at different nonces, so a salt does not remove the nonce dependence"
+  },
+  {
+    "at": "2026-11-05T15:49:37.090Z",
+    "test": "E4-serialized",
+    "results": [
+      {
+        "txHash": "0xd596a80807a70d34c6713c148f7f75f61daee33237d95a4bece35a6c8f3c84c9",
+        "keyMatch": true
+      },
+      {
+        "txHash": "0x23c57807d3ba7a53ff6419b6a8440305748727677a9cee5c262faea53de07043",
+        "keyMatch": true
+      },
+      {
+        "txHash": "0x3b0089b7359451d5b022cf46341da59e4218728e89cc2afd66bb60d6edcfcc83",
+        "keyMatch": true
+      }
+    ]
+  },
+  {
+    "at": "2026-11-05T15:49:48.283Z",
+    "test": "F-fund",
+    "txHash": "0xc2ee168696208871b5fe0a87911cff4a265deff2707af22e1caf2a12e38c455c",
+    "from": "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+    "to": "0x2D2C7cBdEb219F35C0Aa6aC77eBa921dde600E11",
+    "amount": "0.05"
+  },
+  {
+    "at": "2026-11-05T15:50:28.972Z",
+    "test": "F",
+    "txHash": "0x2795e078e1c29f57af6e064bef020fd47ce5c706060f2495801dec8440b13e02",
+    "entityKey": "0x137086b18d53a91b39c3c940fdc903ee90be319bf9af2380d8517c3a9393748e",
+    "owner": "0x2D2C7cBdEb219F35C0Aa6aC77eBa921dde600E11",
+    "creator": "0x2D2C7cBdEb219F35C0Aa6aC77eBa921dde600E11",
+    "ownerIsWriter": true,
+    "creatorIsWriter": true,
+    "writerPatchTx": "0xd1c72fd8a284a1e11d4f57e28a8b7d0730b5a4319fefddc5b4d2bd7703707c34",
+    "handoverTx": "0x5429bed03eac02719c108ba4ae74d3d3c9ba22ca4bf3052a59a5698582e11ba2",
+    "ownerAfterHandover": "0x57514B238B7Ffc93bA92028b3F5EF96209478186",
+    "creatorAfterHandover": "0x2D2C7cBdEb219F35C0Aa6aC77eBa921dde600E11",
+    "writerPatchAfterHandoverFailed": true,
+    "writerPatchAfterHandoverError": "Transaction failed: entity 0x137086b1…93748e is owned by 0x57514B238B7Ffc93bA92028b3F5EF96209478186, not 0x2D2C7cBdEb219F35C0Aa6aC77eBa921dde600E11",
+    "userPatchAfterHandoverTx": "0xe3ba027e1224f16ba12dd243e6579417e80c8214a6ec9f62b1351af71600f175"
+  },
+  {
+    "at": "2026-11-05T15:51:02.030Z",
+    "test": "G",
+    "txHash": "0x6f2312d1de78b6f6ec3b781c146a67c7234571344459358699064460ddf9415e",
+    "entityKey": "0xfc2740f25e90cee88049fbd3c6e80049d0de26b6f19705d86bd7f7513452f001",
+    "flags": {
+      "readonly": true,
+      "permissionlessExtension": false,
+      "raw": 1
+    },
+    "owner": "0x57514B238B7Ffc93bA92028b3F5EF96209478186",
+    "creator": "0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+    "userPatchFailed": true,
+    "userPatchError": "Transaction failed: entity 0xfc2740f2…52f001 was created readonly, so its contents can never change. Its expiry can still be extended, and it can be transferred or deleted",
+    "operatorPatchFailed": true,
+    "operatorPatchError": "Transaction failed: entity 0xfc2740f2…52f001 is owned by 0x57514B238B7Ffc93bA92028b3F5EF96209478186, not 0xA7B7EbE69F1bcb3ACD680d5e06cE640E0D2D247F",
+    "userExtendTx": "0xa23009ea80f91f12e5c386f9f4361f69fbd08a3efaedd996b30cfa49ca609940",
+    "userDeleteTx": "0x82679b1922092f3c4d5eb3b1201eb7c4462bb0df3911d44e50b1d508a401a9d9",
+    "goneAfterDelete": true
+  }
+]

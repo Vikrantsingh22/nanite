@@ -1,0 +1,499 @@
+[
+  {
+    "at": "2026-11-05T15:46:17.499Z",
+    "test": "seed",
+    "txHash": "0x7483dcb774f7e3973d9e1f2b06ddaa370ca22bd672a54793c44c8e4d1ecc32d4",
+    "base": 1793886367,
+    "seeds": [
+      {
+        "agentId": "alex.t03.nanitecom.eth",
+        "type": "otp",
+        "receivedAt": 1793886367,
+        "threadId": "otp-0",
+        "sender": "a@example.com",
+        "key": "0xcecadf4160d233da04d95b8aac9623dcc07fc536dfff464f6f77838c0f1bb47e"
+      },
+      {
+        "agentId": "alex.t03.nanitecom.eth",
+        "type": "conversation",
+        "receivedAt": 1793886967,
+        "threadId": "thr-A",
+        "sender": "b@example.com",
+        "key": "0xe0c27e044cf7e652ebdfd908e9a6d181b1051d4977d20ce0bf9777f7c7ff23c6"
+      },
+      {
+        "agentId": "alex.t03.nanitecom.eth",
+        "type": "otp",
+        "receivedAt": 1793887567,
+        "threadId": "otp-2",
+        "sender": "c@bank.test",
+        "key": "0xbef553a3cb6454e17f5a19f49f8a62e6b13f7b576a7b09a2d90636d68de0ddf7"
+      },
+      {
+        "agentId": "alex.t03.nanitecom.eth",
+        "type": "conversation",
+        "receivedAt": 1793888167,
+        "threadId": "thr-A",
+        "sender": "noreply@svc.test",
+        "key": "0x5b7932debfb45ac40c7d201e3084edb9c79f92b3ea222ad69d96d11c50ea4536"
+      },
+      {
+        "agentId": "alex.t03.nanitecom.eth",
+        "type": "otp",
+        "receivedAt": 1793888767,
+        "threadId": "otp-4",
+        "sender": "a@example.com",
+        "key": "0x9f1bbcbc2df461ce25e1cfeff2b147fb1783e40b6fd487e6411b10adfedebd4c"
+      },
+      {
+        "agentId": "alex.t03.nanitecom.eth",
+        "type": "conversation",
+        "receivedAt": 1793889367,
+        "threadId": "thr-B",
+        "sender": "b@example.com",
+        "key": "0x1dea48fd33dee0924050549e27ec0718b459742d89885f53ff2b87562d328ba5"
+      },
+      {
+        "agentId": "alex.t03.nanitecom.eth",
+        "type": "otp",
+        "receivedAt": 1793889967,
+        "threadId": "otp-6",
+        "sender": "c@bank.test",
+        "key": "0x7469f6e3afda5ae985b61beb6a4b6a46ef4e642a8c50c4414ec244c2015d3be8"
+      },
+      {
+        "agentId": "alex.t03.nanitecom.eth",
+        "type": "conversation",
+        "receivedAt": 1793890567,
+        "threadId": "thr-B",
+        "sender": "noreply@svc.test",
+        "key": "0xee2a1abe181742364765fea8f859fe8e346b46a55adb46c0afc8047df1e05704"
+      },
+      {
+        "agentId": "bob.t03.nanitecom.eth",
+        "type": "conversation",
+        "receivedAt": 1793886667,
+        "threadId": "thr-A",
+        "sender": "b@example.com",
+        "key": "0x6d4f3496dd10bd04f783458f0518de7158f72da5bd68131b605911345bb0ce32"
+      },
+      {
+        "agentId": "bob.t03.nanitecom.eth",
+        "type": "otp",
+        "receivedAt": 1793887567,
+        "threadId": "otp-b1",
+        "sender": "c@bank.test",
+        "key": "0x7dd62f14f9d7b2245bc4c51e18b80fa14b26600dda83779443ed884197172253"
+      },
+      {
+        "agentId": "bob.t03.nanitecom.eth",
+        "type": "conversation",
+        "receivedAt": 1793888467,
+        "threadId": "thr-A",
+        "sender": "noreply@svc.test",
+        "key": "0xbb7209f2ce92d13c425773e57e9123347f03c7ba5a28cc6dd0033e9b9252ba20"
+      },
+      {
+        "agentId": "bob.t03.nanitecom.eth",
+        "type": "otp",
+        "receivedAt": 1793889367,
+        "threadId": "otp-b3",
+        "sender": "a@example.com",
+        "key": "0xaf2c2dc4033fe3bd034f5b69b6ecd66420d3180dd796ce5c00c211d0a4104a79"
+      }
+    ],
+    "note": "12 emails, 1 executeBatch, expiry 1h, writer idx5"
+  },
+  {
+    "at": "2026-11-05T15:48:44.611Z",
+    "test": "queries",
+    "results": [
+      {
+        "name": "a1 inbox page1 (offset 0)",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 DESC",
+        "rows": 5,
+        "ok": true,
+        "ms": 1383,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND agentId = str('alex.t03.nanitecom.eth')",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "receivedAt",
+            "type": "u64",
+            "direction": "desc"
+          },
+          "limit": 5
+        },
+        "rawOk": true,
+        "rawMs": 1042
+      },
+      {
+        "name": "a2 inbox page2 (offset 5)",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 DESC",
+        "rows": 3,
+        "ok": true,
+        "ms": 1145,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND agentId = str('alex.t03.nanitecom.eth')",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "receivedAt",
+            "type": "u64",
+            "direction": "desc"
+          },
+          "limit": 5,
+          "offset": 5
+        },
+        "rawOk": true,
+        "rawMs": 1008
+      },
+      {
+        "name": "a3 cursor page1 ($key asc)",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY $key:key ASC",
+        "rows": 5,
+        "ok": true,
+        "ms": 1074,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND agentId = str('alex.t03.nanitecom.eth')",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "$key",
+            "type": "key",
+            "direction": "asc"
+          },
+          "limit": 5
+        },
+        "rawOk": true,
+        "rawMs": 1008
+      },
+      {
+        "name": "a4 cursor page2 ($key > last)",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND $key > key(0xbef553a3cb6454e17f5a19f49f8a62e6b13f7b576a7b09a2d90636d68de0ddf7) AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY $key:key ASC",
+        "rows": 3,
+        "ok": true,
+        "ms": 1058,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND agentId = str('alex.t03.nanitecom.eth') AND $key > key(0xbef553a3cb6454e17f5a19f49f8a62e6b13f7b576a7b09a2d90636d68de0ddf7)",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "$key",
+            "type": "key",
+            "direction": "asc"
+          },
+          "limit": 5
+        },
+        "rawOk": true,
+        "rawMs": 1082
+      },
+      {
+        "name": "b otp only",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND type = str('otp') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 DESC",
+        "rows": 4,
+        "ok": true,
+        "ms": 1056,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND agentId = str('alex.t03.nanitecom.eth') AND type = str('otp')",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "receivedAt",
+            "type": "u64",
+            "direction": "desc"
+          }
+        },
+        "rawOk": true,
+        "rawMs": 1691
+      },
+      {
+        "name": "c latest otp",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND type = str('otp') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 DESC",
+        "rows": 1,
+        "ok": true,
+        "ms": 1626,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND agentId = str('alex.t03.nanitecom.eth') AND type = str('otp')",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "receivedAt",
+            "type": "u64",
+            "direction": "desc"
+          },
+          "limit": 1
+        },
+        "rawOk": true,
+        "rawMs": 1691
+      },
+      {
+        "name": "d receivedAt BETWEEN",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND receivedAt BETWEEN u64(1793887567) AND u64(1793889367) AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 DESC",
+        "rows": 4,
+        "ok": true,
+        "ms": 961,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND agentId = str('alex.t03.nanitecom.eth') AND receivedAt >= u64(1793887567) AND receivedAt <= u64(1793889367)",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "receivedAt",
+            "type": "u64",
+            "direction": "desc"
+          }
+        },
+        "rawOk": true,
+        "rawMs": 1031
+      },
+      {
+        "name": "e thread thr-A (asc)",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND threadId = str('thr-A') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 ASC",
+        "rows": 2,
+        "ok": true,
+        "ms": 971,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND agentId = str('alex.t03.nanitecom.eth') AND threadId = str('thr-A')",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "receivedAt",
+            "type": "u64",
+            "direction": "asc"
+          }
+        },
+        "rawOk": true,
+        "rawMs": 949
+      },
+      {
+        "name": "f senderHash lookup (both agents)",
+        "builderQuery": "arkiv.schema = str('nanite.email.v0') AND senderHash = str('982384b49033d8dcfc8ffd495b3281f19b34304829e9388d6c23ea2e80e97af0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 DESC",
+        "rows": 3,
+        "ok": true,
+        "ms": 1051,
+        "rawQuery": "arkiv.schema = str('nanite.email.v0') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) AND senderHash = str('982384b49033d8dcfc8ffd495b3281f19b34304829e9388d6c23ea2e80e97af0')",
+        "rawOpts": {
+          "orderBy": {
+            "kind": "order",
+            "name": "receivedAt",
+            "type": "u64",
+            "direction": "desc"
+          }
+        },
+        "rawOk": true,
+        "rawMs": 1016
+      },
+      {
+        "name": "g count",
+        "withCount": "8",
+        "countBuilder": "8",
+        "rawCount": "8",
+        "expected": 8,
+        "ok": true
+      }
+    ],
+    "allOk": true,
+    "sampleRow": {
+      "$key": "0xcecadf4160d233da04d95b8aac9623dcc07fc536dfff464f6f77838c0f1bb47e",
+      "$creator": "0xC8568eacC33877B26CFdB1e9257478853D3e501C",
+      "$owner": "0xC8568eacC33877B26CFdB1e9257478853D3e501C",
+      "$attributes": {
+        "agentId": {
+          "type": "str",
+          "value": "alex.t03.nanitecom.eth"
+        },
+        "arkiv.schema": {
+          "type": "str",
+          "value": "nanite.email.v0"
+        },
+        "ciphertext": {
+          "type": "bytes",
+          "value": "0xad0fd1d0ba539ad3aea29e44864486b9737ecee5b0ea7b83ab865f8dd86e40ee3a2223f718febce12e51d53310e2b7970956c05d04e1fabf059f5ac2c47f1dd4"
+        },
+        "keyId": {
+          "type": "str",
+          "value": "k1"
+        },
+        "nonce": {
+          "type": "bytes",
+          "value": "0x5715e52345b9ec63fdad30a1e6fbc922f2bac8c038ad4534"
+        },
+        "ownerId": {
+          "type": "addr",
+          "value": "0x1111111111111111111111111111111111111111"
+        },
+        "receivedAt": {
+          "type": "u64",
+          "value": "1793886367"
+        },
+        "senderHash": {
+          "type": "str",
+          "value": "982384b49033d8dcfc8ffd495b3281f19b34304829e9388d6c23ea2e80e97af0"
+        },
+        "threadId": {
+          "type": "str",
+          "value": "otp-0"
+        },
+        "type": {
+          "type": "str",
+          "value": "otp"
+        },
+        "wrappedKeys": {
+          "type": "bytes",
+          "value": "0xc7f286bfe94fc1071785782db2240698dcb95a28c91d9c708cc6785c4a12c5582fac5d44b7a3480822184cf77c5ec63d62b68eebaffd3efa0a06fb4c44bade0ed64dd57cee6d3d97c9b2c75cb7423034"
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-05T15:49:55.128Z",
+    "test": "poison",
+    "attackerTx": "0x96e29a23497cb5ba19fcead488f6ce3dab0532a35ad4baf90ca5f427f3ca7c22",
+    "attackerKeys": [
+      "0xaf25ae24f55937b98013bcb92e7e477ec29cc1b24929e37b12de07bd22cceed9",
+      "0x387f36f4eac13f2ed9ff16f88f4e5aa4b3611963b35b5f0d54537f950e861290"
+    ],
+    "legitOtpKeys": [
+      "0xcecadf4160d233da04d95b8aac9623dcc07fc536dfff464f6f77838c0f1bb47e",
+      "0xbef553a3cb6454e17f5a19f49f8a62e6b13f7b576a7b09a2d90636d68de0ddf7",
+      "0x9f1bbcbc2df461ce25e1cfeff2b147fb1783e40b6fd487e6411b10adfedebd4c",
+      "0x7469f6e3afda5ae985b61beb6a4b6a46ef4e642a8c50c4414ec244c2015d3be8"
+    ],
+    "naiveQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND type = str('otp') ORDER BY receivedAt:u64 DESC",
+    "naiveRows": [
+      {
+        "key": "0x387f36f4eac13f2ed9ff16f88f4e5aa4b3611963b35b5f0d54537f950e861290",
+        "creator": "0x79925Fd8DFb1b656025038fE46CDD412345919eC",
+        "agentId": {
+          "type": "str",
+          "value": "alex.t03.nanitecom.eth"
+        }
+      },
+      {
+        "key": "0xaf25ae24f55937b98013bcb92e7e477ec29cc1b24929e37b12de07bd22cceed9",
+        "creator": "0x79925Fd8DFb1b656025038fE46CDD412345919eC",
+        "agentId": {
+          "type": "str",
+          "value": "alex.t03.nanitecom.eth"
+        }
+      },
+      {
+        "key": "0x7469f6e3afda5ae985b61beb6a4b6a46ef4e642a8c50c4414ec244c2015d3be8",
+        "creator": "0xC8568eacC33877B26CFdB1e9257478853D3e501C",
+        "agentId": {
+          "type": "str",
+          "value": "alex.t03.nanitecom.eth"
+        }
+      },
+      {
+        "key": "0x9f1bbcbc2df461ce25e1cfeff2b147fb1783e40b6fd487e6411b10adfedebd4c",
+        "creator": "0xC8568eacC33877B26CFdB1e9257478853D3e501C",
+        "agentId": {
+          "type": "str",
+          "value": "alex.t03.nanitecom.eth"
+        }
+      },
+      {
+        "key": "0xbef553a3cb6454e17f5a19f49f8a62e6b13f7b576a7b09a2d90636d68de0ddf7",
+        "creator": "0xC8568eacC33877B26CFdB1e9257478853D3e501C",
+        "agentId": {
+          "type": "str",
+          "value": "alex.t03.nanitecom.eth"
+        }
+      }
+    ],
+    "attackerRowsInNaive": 2,
+    "naiveLatestOtpCreator": "0x79925Fd8DFb1b656025038fE46CDD412345919eC",
+    "pinnedQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND type = str('otp') AND $creator = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 DESC",
+    "pinnedRows": 4,
+    "attackerRowsInPinnedCreator": 0,
+    "pinnedOwnerQuery": "arkiv.schema = str('nanite.email.v0') AND agentId = str('alex.t03.nanitecom.eth') AND type = str('otp') AND $owner = addr(0xC8568eacC33877B26CFdB1e9257478853D3e501C) ORDER BY receivedAt:u64 DESC",
+    "attackerRowsInPinnedOwner": 0,
+    "lookalike": {
+      "error": "res.skipped?.slice is not a function"
+    }
+  },
+  {
+    "at": "2026-11-05T15:50:09.358Z",
+    "test": "lookalike",
+    "builderEntities": 2,
+    "skippedType": "number",
+    "skipped": 1,
+    "throwMode": "SchemaMismatchError: Column \"type\": entity 0x325570a87eb227d17f32a871be4ea4a6af14ea150be55c31e8640cf150b9d0a4 has no value for this required str column, so it does not match the schema. Declare the column .optional() if e",
+    "rawNoSchemaTag": [
+      {
+        "k": "0xaf25ae24f55937b98013bcb92e7e477ec29cc1b24929e37b12de07bd22cceed9",
+        "attrs": [
+          "agentId",
+          "arkiv.schema",
+          "ciphertext",
+          "keyId",
+          "nonce",
+          "ownerId",
+          "receivedAt",
+          "senderHash",
+          "threadId",
+          "type",
+          "wrappedKeys"
+        ]
+      },
+      {
+        "k": "0x387f36f4eac13f2ed9ff16f88f4e5aa4b3611963b35b5f0d54537f950e861290",
+        "attrs": [
+          "agentId",
+          "arkiv.schema",
+          "ciphertext",
+          "keyId",
+          "nonce",
+          "ownerId",
+          "receivedAt",
+          "senderHash",
+          "threadId",
+          "type",
+          "wrappedKeys"
+        ]
+      },
+      {
+        "k": "0x325570a87eb227d17f32a871be4ea4a6af14ea150be55c31e8640cf150b9d0a4",
+        "attrs": [
+          "agentId",
+          "arkiv.schema"
+        ]
+      }
+    ]
+  },
+  {
+    "at": "2026-11-05T15:51:02.032Z",
+    "test": "latency",
+    "runs": [
+      {
+        "run": 0,
+        "tx": "0xa16a373b51d0ca8b5aae85e554467a093b4a039b112656e4e80dfdf39800ff60",
+        "key": "0x14310f4e203fc99bd0b61c651cc71ca0efb54b89e53cb39d5e3600f3fdc33265",
+        "getEntityMs": 1286,
+        "queryMs": 2218
+      },
+      {
+        "run": 1,
+        "tx": "0xb241f3acbeb38375156c501f4d9a0bd3fcb0dc64f7ac3a836ed96653c3af99d6",
+        "key": "0xeaf7ec6b6ba20edee1ec90f5bc3461c78dc5a6c679c3e0988e60d8bc49ec5c01",
+        "getEntityMs": 704,
+        "queryMs": 796
+      },
+      {
+        "run": 2,
+        "tx": "0x1db238699002b253c82de68f00f2e0404c0869cc0e8237d15eb2478e46bc30fe",
+        "key": "0x3d9bb0cc4210707baf366a8fee48200bf4de5d29dcc7776f54e7880258732b60",
+        "getEntityMs": 350,
+        "queryMs": 604
+      }
+    ],
+    "watchRuns": [
+      {
+        "key": "0x48afae7fb88ea4c0e0a09133f0002ccafa9f2906ceae3db26d88a5d6d90793db",
+        "tx": "0x89783740f284d7cafac094c25bd0b97d8fe7e2951f53b79cab28f04633bd536e",
+        "notifyMsAfterReceipt": 942
+      },
+      {
+        "key": "0xaf64a057fb9a76545625bbabd4aad351e239250852d2bf1a1f7ad364e19fb42d",
+        "tx": "0xa168405d8c61f29bf7e513bb5a552e280e1a037c3336396b3eb894f79158c242",
+        "notifyMsAfterReceipt": -2787
+      }
+    ],
+    "watchErrors": [],
+    "note": "ms measured from createEntity return (receipt received) to first success"
+  }
+]

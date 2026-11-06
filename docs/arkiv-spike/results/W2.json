@@ -1,0 +1,627 @@
+[
+  {
+    "at": "2026-11-05T15:45:31.925Z",
+    "test": "t2-extend",
+    "key": "0xb72e5e4c93bf3ff737e7c012d213ccbadc6b43bebdfe902f53b4ce732c7361f2",
+    "createTx": "0x913a4af1b2942a806c99604633261122971a1d88ade9c7ae883cb3f7d3e3c3b6",
+    "createBlock": "253870",
+    "createExpiresAt": "253930",
+    "expiresAtBeforeExtend": "253930",
+    "extendTx": "0xc0f16813943cf57b173d32bb2cade42eb61137156b52c8a1b8fda28e865934eb",
+    "extendBlock": "253886",
+    "extendReturnedExpiresAt": "255686",
+    "expiresAtAfterRead": "255686",
+    "deltaFromExtendBlock": "1800",
+    "extendFeeWei": "42955000000000",
+    "createFeeWei": "193137000000000",
+    "expectedBlocks1h": 1800
+  },
+  {
+    "at": "2026-11-05T15:45:32.353Z",
+    "test": "t2-shorten",
+    "result": "error",
+    "msg": "Transaction failed: entity 0xb72e5e4c…7361f2 already expires at block 255686, so extending it to 254188 would shorten its life"
+  },
+  {
+    "at": "2026-11-05T15:45:32.707Z",
+    "test": "t2-after-shorten",
+    "expiresAt": "255686"
+  },
+  {
+    "at": "2026-11-05T15:45:37.316Z",
+    "test": "t3-max",
+    "key": "0x9cdbd6e90aac136094d914048396c7ec51446a8eff57024d7694572bfcda19bb",
+    "tx": "0xc75ee48e9bb17cebd94234c3278bbd1569965e8124a5d4be83e6132aa14cdd7c",
+    "createBlock": "253890",
+    "expiresAt": "8137890",
+    "lifetimeBlocks": "7884000",
+    "maxLifetime": 7884000,
+    "feeWei": "558180000000000",
+    "balanceDeltaWei": "558180000000000"
+  },
+  {
+    "at": "2026-11-05T15:45:37.318Z",
+    "test": "t3-max+1",
+    "result": "error",
+    "name": "InvalidExpiryError",
+    "msg": "Invalid expiry: a lifetime of 7884001 blocks is longer than the chain's maximum lifetime of 7884000 blocks (about 182 days). Use ExpirationTime.max() for the longest lifetime allowed."
+  },
+  {
+    "at": "2026-11-05T15:45:43.130Z",
+    "test": "t3-FATAL",
+    "msg": "Transaction 0xfc55edb8db994ce031508d6310cba967f405d5705d55557154e46e3962de2064 ran out of gas: it used all 31976 gas it was given, so nothing was applied and the fee was spent. The batch cost more when it ran than when it was estimated, because the state changed in between. Send it again."
+  },
+  {
+    "at": "2026-11-05T15:45:57.567Z",
+    "test": "t4-create",
+    "withFlag": "0x89f337951054be49653a30b9a1d9c58d3c0d0ab03a72cb1d6080d2166ea6b7c0",
+    "withoutFlag": "0x924a4494cb8d444739dcc0fd95ace6709c60e020c56d18cae9c6860fd44a40ca",
+    "flagsYes": {
+      "readonly": false,
+      "permissionlessExtension": false,
+      "raw": 0
+    },
+    "flagsNo": {
+      "readonly": false,
+      "permissionlessExtension": false,
+      "raw": 0
+    },
+    "expYes": "255696",
+    "expNo": "255700"
+  },
+  {
+    "at": "2026-11-05T15:45:58.671Z",
+    "test": "t4-stranger-extend",
+    "label": "withFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0x89f33795…a6b7c0 is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:45:59.126Z",
+    "test": "t4-stranger-patch",
+    "label": "withFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0x89f33795…a6b7c0 is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:45:59.491Z",
+    "test": "t4-stranger-delete",
+    "label": "withFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0x89f33795…a6b7c0 is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:45:59.833Z",
+    "test": "t4-stranger-extend",
+    "label": "withoutFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0x924a4494…4a40ca is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:46:00.209Z",
+    "test": "t4-stranger-patch",
+    "label": "withoutFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0x924a4494…4a40ca is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:46:00.677Z",
+    "test": "t4-stranger-delete",
+    "label": "withoutFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0x924a4494…4a40ca is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:46:01.475Z",
+    "test": "t4-final",
+    "withFlagExpiresAt": "255696",
+    "withoutFlagExpiresAt": "255700"
+  },
+  {
+    "at": "2026-11-05T15:46:57.861Z",
+    "test": "t5-costs",
+    "rows": [
+      {
+        "kind": "create-max",
+        "block": "253905",
+        "gasUsed": "558180",
+        "gasPrice": "1000000000",
+        "feeWei": "558180000000000",
+        "tx": "0x2506a8755f590a80abcfa9d0935876046b0c44cd7bee81a79f349cd2b54082a1",
+        "feeTGLM": "0.00055818"
+      },
+      {
+        "kind": "create-1h",
+        "block": "253909",
+        "gasUsed": "180437",
+        "gasPrice": "1000000000",
+        "feeWei": "180437000000000",
+        "tx": "0xd312149df4e84f6b6a84ae6d73be896820a5f8f54bfa28b46d31155dd46903ee",
+        "feeTGLM": "0.000180437"
+      },
+      {
+        "kind": "extend-to-max",
+        "block": "253913",
+        "gasUsed": "420613",
+        "gasPrice": "1000000000",
+        "feeWei": "420613000000000",
+        "tx": "0xdd3c7e5057bd6abbe8615061aa4d04ee77cf1d828d822e6066345724313a4c0a",
+        "feeTGLM": "0.000420613"
+      },
+      {
+        "kind": "create-max",
+        "block": "253920",
+        "gasUsed": "558180",
+        "gasPrice": "1000000000",
+        "feeWei": "558180000000000",
+        "tx": "0xfaa79da0cceb5896b8ade7cccf4958a0a43ab9dd3740c2312ca1ea86fbc84e51",
+        "feeTGLM": "0.00055818"
+      },
+      {
+        "kind": "create-1h",
+        "block": "253924",
+        "gasUsed": "180437",
+        "gasPrice": "1000000000",
+        "feeWei": "180437000000000",
+        "tx": "0xc9c3e3450d3bb57e691d7b4d7cdfe101af6e0a9ea1f041a9a8aaf45a88e79d4d",
+        "feeTGLM": "0.000180437"
+      },
+      {
+        "kind": "extend-to-max",
+        "block": "253928",
+        "gasUsed": "420613",
+        "gasPrice": "1000000000",
+        "feeWei": "420613000000000",
+        "tx": "0xcf9ce1d53ebada0af5fdb13e0d81b2ed8ebb6b149b70cb963bfb779ede11772a",
+        "feeTGLM": "0.000420613"
+      }
+    ]
+  },
+  {
+    "at": "2026-11-05T15:47:52.907Z",
+    "test": "t6-expiry-events",
+    "key": "0x43c974a66d319239d452a9d1b8507b4a2f0eb1284c087fbfd59a1540cdbe1988",
+    "eventsSeen": [
+      {
+        "type": "EntityCreated",
+        "block": "253932"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253932"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253932"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253932"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253932"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253932"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253932"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253932"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253933"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253933"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253935"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253936"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253936"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253936"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253936"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253936"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253936"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253936"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253936"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253937"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253937"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253937"
+      },
+      {
+        "type": "OwnershipTransferred",
+        "block": "253937"
+      },
+      {
+        "type": "OwnershipTransferred",
+        "block": "253937"
+      },
+      {
+        "type": "OwnershipTransferred",
+        "block": "253937"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253937"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253937"
+      },
+      {
+        "type": "EntityDeleted",
+        "block": "253938"
+      },
+      {
+        "type": "EntityDeleted",
+        "block": "253938"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253939"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253939"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253942"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253943"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253943"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253945"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253945"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253945"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253945"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253945"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253945"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253945"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253945"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253947"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253947"
+      },
+      {
+        "type": "EntityDeleted",
+        "block": "253948"
+      },
+      {
+        "type": "EntityDeleted",
+        "block": "253948"
+      },
+      {
+        "type": "EntityCreated",
+        "block": "253950"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253950"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253950"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253951"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253951"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253951"
+      },
+      {
+        "type": "EntityPatched",
+        "block": "253952"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253952"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253953"
+      },
+      {
+        "type": "ExpiryExtended",
+        "block": "253953"
+      }
+    ],
+    "note": "events after create; any event at expiry block?"
+  },
+  {
+    "at": "2026-11-05T15:48:04.796Z",
+    "test": "t1-create",
+    "key": "0x554e99f07de021917a0140248d33fc3f6421b85820ccca6d4fc9a72e5e517773",
+    "tx": "0xaab250bc20b64acfa15715ffad21fa8d02200ad7575e74934df158079c42f38c",
+    "url": "https://rabdi.explorer.arkiv.network/tx/0xaab250bc20b64acfa15715ffad21fa8d02200ad7575e74934df158079c42f38c",
+    "createBlock": "253961",
+    "expiresAtBlock": "253991",
+    "lifetimeBlocks": "30",
+    "feeWei": "180070000000000",
+    "timingBefore": {
+      "currentBlock": "253958",
+      "currentBlockTime": 1793893674,
+      "blockDuration": 2
+    },
+    "balanceBefore": "1446293349000000000"
+  },
+  {
+    "at": "2026-11-05T15:49:06.724Z",
+    "test": "t1-expiry",
+    "key": "0x554e99f07de021917a0140248d33fc3f6421b85820ccca6d4fc9a72e5e517773",
+    "expiresAtBlock": "253991",
+    "lastSeenBlock": "253988",
+    "lastSeenAt": "2026-11-05T15:48:55.004Z",
+    "firstGoneBlock": "253993",
+    "goneAt": "2026-11-05T15:49:05.946Z",
+    "timingAfter": {
+      "currentBlock": "253994",
+      "currentBlockTime": 1793893746,
+      "blockDuration": 2
+    },
+    "log": [
+      {
+        "now": "2026-11-05T15:48:06.167Z",
+        "blk": "253963",
+        "qHas": true,
+        "gHas": true
+      },
+      {
+        "now": "2026-11-05T15:48:20.095Z",
+        "blk": "253970",
+        "qHas": true,
+        "gHas": true
+      },
+      {
+        "now": "2026-11-05T15:48:31.790Z",
+        "blk": "253976",
+        "qHas": true,
+        "gHas": true
+      },
+      {
+        "now": "2026-11-05T15:48:43.031Z",
+        "blk": "253982",
+        "qHas": true,
+        "gHas": true
+      },
+      {
+        "now": "2026-11-05T15:48:55.004Z",
+        "blk": "253988",
+        "qHas": true,
+        "gHas": true
+      },
+      {
+        "now": "2026-11-05T15:49:05.946Z",
+        "blk": "253993",
+        "qHas": false,
+        "gHas": false
+      }
+    ]
+  },
+  {
+    "at": "2026-11-05T15:49:07.534Z",
+    "test": "t1-extend-after-expiry",
+    "result": "error",
+    "msg": "Transaction failed: no entity 0x554e99f0…517773 — it may have been deleted, or have expired"
+  },
+  {
+    "at": "2026-11-05T15:49:07.920Z",
+    "test": "t1-patch-after-expiry",
+    "result": "error",
+    "msg": "Transaction failed: no entity 0x554e99f0…517773 — it may have been deleted, or have expired"
+  },
+  {
+    "at": "2026-11-05T15:49:08.380Z",
+    "test": "t1-raw-arkiv_getEntity",
+    "status": 200,
+    "resp": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}"
+  },
+  {
+    "at": "2026-11-05T15:49:08.720Z",
+    "test": "t1-raw-eth_getTransactionByHash",
+    "status": 200,
+    "resp": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"type\":\"0x2\",\"chainId\":\"0x76edaf\",\"nonce\":\"0xe\",\"gas\":\"0x37bec\",\"maxFeePerGas\":\"0x47868c00\",\"maxPriorityFeePerGas\":\"0x0\",\"to\":\"0x4400000000000000000000000000000000000044\",\"value\":\"0x0\",\"accessList\":[],\"input\":\"0x496500440000000000000000000000000000000000000000000000"
+  },
+  {
+    "at": "2026-11-05T15:49:09.352Z",
+    "test": "t1-explorer",
+    "url": "https://rabdi.explorer.arkiv.network/entity/0x554e99f07de021917a0140248d33fc3f6421b85820ccca6d4fc9a72e5e517773",
+    "status": 200,
+    "len": 1089,
+    "containsKey": false
+  },
+  {
+    "at": "2026-11-05T15:49:09.713Z",
+    "test": "t1-explorer",
+    "url": "https://rabdi.explorer.arkiv.network/tx/0xaab250bc20b64acfa15715ffad21fa8d02200ad7575e74934df158079c42f38c",
+    "status": 200,
+    "len": 1089,
+    "containsKey": false
+  },
+  {
+    "at": "2026-11-05T15:49:37.158Z",
+    "test": "t3-max",
+    "key": "0x156f766a38483ad8cb3c5550f6723d327de3d67a367e9190ac2c5574bd73a316",
+    "tx": "0x30566d2d4979dc7892d58d43c44bc2b222e00b619fb38a35a5dabd22996551a7",
+    "createBlock": "254007",
+    "expiresAt": "8138007",
+    "lifetimeBlocks": "7884000",
+    "maxLifetime": 7884000,
+    "feeWei": "558180000000000",
+    "balanceDeltaWei": "558180000000000"
+  },
+  {
+    "at": "2026-11-05T15:49:37.161Z",
+    "test": "t3-max+1",
+    "result": "error",
+    "name": "InvalidExpiryError",
+    "msg": "Invalid expiry: a lifetime of 7884001 blocks is longer than the chain's maximum lifetime of 7884000 blocks (about 182 days). Use ExpirationTime.max() for the longest lifetime allowed."
+  },
+  {
+    "at": "2026-11-05T15:49:46.297Z",
+    "test": "t3-extend-max",
+    "tx": "0x33fb04f30e0a0327b62ffac16aac7433aa38b526c9058b11aa9b2efbb508495a",
+    "block": "254012",
+    "expiresAt": "8138012",
+    "delta": "7884000",
+    "feeWei": "42883000000000"
+  },
+  {
+    "at": "2026-11-05T15:49:46.299Z",
+    "test": "t3-atBlock-over",
+    "result": "error",
+    "name": "InvalidExpiryError",
+    "msg": "Invalid expiry: expiresAt resolves to block 8138112, past block 8138014: the chain's maximum lifetime is 7884000 blocks (about 182 days) after the block the transaction lands in, and the current block is 254013. Use ExpirationTime.max() for the longest lifetime allowed.",
+    "note": "raw node-level rejection not tested (SDK pre-check)"
+  },
+  {
+    "at": "2026-11-05T15:50:04.837Z",
+    "test": "t4-create",
+    "withFlag": "0xc8e452cbe4cdb42981ff58abdf3819db5a27a0ff6fb41163aed9b76f9f86c606",
+    "withoutFlag": "0xaa07e976ba14564a8dea40af9a392a40b83d46e0da53b361af9164ebcf1ae69f",
+    "flagsYes": {
+      "readonly": false,
+      "permissionlessExtension": true,
+      "raw": 2
+    },
+    "flagsNo": {
+      "readonly": false,
+      "permissionlessExtension": false,
+      "raw": 0
+    },
+    "expYes": "255819",
+    "expNo": "255821"
+  },
+  {
+    "at": "2026-11-05T15:50:09.857Z",
+    "test": "t4-stranger-extend",
+    "label": "withFlag",
+    "result": "SUCCESS",
+    "tx": "0xa3283c0bede4eea9b95ec3829e3d0a4f0bd8d6252d9a70ec6c43cddc64ceec28",
+    "block": "254025",
+    "newExpiresAt": "257625",
+    "owner": "0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD"
+  },
+  {
+    "at": "2026-11-05T15:50:10.225Z",
+    "test": "t4-stranger-patch",
+    "label": "withFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0xc8e452cb…86c606 is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:50:10.811Z",
+    "test": "t4-stranger-delete",
+    "label": "withFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0xc8e452cb…86c606 is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:50:11.226Z",
+    "test": "t4-stranger-extend",
+    "label": "withoutFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0xaa07e976…1ae69f is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:50:11.617Z",
+    "test": "t4-stranger-patch",
+    "label": "withoutFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0xaa07e976…1ae69f is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:50:12.056Z",
+    "test": "t4-stranger-delete",
+    "label": "withoutFlag",
+    "result": "error",
+    "msg": "Transaction failed: entity 0xaa07e976…1ae69f is owned by 0x15954bD9d58b4b069067C6d722ACB6bC229DbbdD, not 0xE1c9EE7c463462F203CBB98B79621Cf60464c99B"
+  },
+  {
+    "at": "2026-11-05T15:50:12.995Z",
+    "test": "t4-final",
+    "withFlagExpiresAt": "257625",
+    "withoutFlagExpiresAt": "255821"
+  }
+]
