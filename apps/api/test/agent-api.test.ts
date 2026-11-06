@@ -77,9 +77,15 @@ async function makeAgent(userId: string, custody: "nanite" | "self", label: stri
   return { id, ens, keyId: keyId(kp.publicKey), publicKey: kp.publicKey, token, tokenId };
 }
 
-async function addEmail(agent: TestAgent, type: "otp" | "conversation", receivedAt: number, withContent = true) {
+async function addEmail(
+  agent: TestAgent,
+  type: "otp" | "conversation" | "sent",
+  receivedAt: number,
+  withContent = true,
+  extraMeta: Record<string, string> = {},
+) {
   const enc = await encryptEmail(
-    { subject: SUBJECT, body: BODY, meta: { ...(type === "otp" ? { otp: OTP } : {}), links: [LINK] } },
+    { subject: SUBJECT, body: BODY, meta: { ...(type === "otp" ? { otp: OTP } : {}), links: [LINK], ...extraMeta } },
     [{ keyId: agent.keyId, publicKey: agent.publicKey }],
   );
   const key = ("0x" + randomBytes(32).toString("hex")) as `0x${string}`;
@@ -194,6 +200,16 @@ describe("agent API", () => {
     expect(b.links).toEqual([LINK]);
     expect(b.type).toBe("otp");
     expect(b).not.toHaveProperty("from");
+  });
+
+  it("returns the sender as untrusted.from for inbound mail and the recipient as untrusted.to for sent mail", async () => {
+    const inbound = await addEmail(A, "conversation", 2100, true, { from: "sender@example.com" });
+    const b = (await (await get(makeApp(), `/v1/emails/${inbound.$key}`, A.token)).json()) as Record<string, any>;
+    expect(b.untrusted).toEqual({ from: "sender@example.com", subject: SUBJECT, body: BODY });
+    const sent = await addEmail(A, "sent", 2200, true, { to: "friend@example.com" });
+    const s = (await (await get(makeApp(), `/v1/emails/${sent.$key}`, A.token)).json()) as Record<string, any>;
+    expect(s.untrusted).toEqual({ to: "friend@example.com", subject: SUBJECT, body: BODY });
+    expect(s.untrusted).not.toHaveProperty("from");
   });
 
   it("returns 404 for another agent's email and for unknown keys", async () => {

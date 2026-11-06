@@ -182,7 +182,12 @@ export function v1Routes(deps: V1Deps) {
         ...summary(rec, block, now()),
         content_trust: "untrusted",
         notice: UNTRUSTED_NOTICE,
-        untrusted: { subject: plain.subject, body: plain.body },
+        untrusted: {
+          ...(plain.meta?.from ? { from: plain.meta.from } : {}),
+          ...(plain.meta?.to ? { to: plain.meta.to } : {}),
+          subject: plain.subject,
+          body: plain.body,
+        },
         ...(plain.meta?.otp ? { otp: plain.meta.otp } : {}),
         links: plain.meta?.links ?? [],
       });
