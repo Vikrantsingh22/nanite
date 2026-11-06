@@ -3,7 +3,7 @@
 import * as React from "react"
 
 import {
-  AgentCard, ArkivEntityChip, EnsName, InboxRow, OtpCountdown, PermissionMatrix,
+  AgentCard, AgentGlyph, AgentMascot, ArkivEntityChip, EnsName, InboxRow, OtpCountdown, PermissionMatrix,
   RecoveryCode, SendPolicyBadge, StatusLine, UnlockKeyPanel,
   type LogLine, type UnlockState,
 } from "@/components/nanite"
@@ -54,6 +54,27 @@ export function PatternsSection() {
           <SendPolicyBadge policy="reply-only" />
           <SendPolicyBadge policy="allowlist" />
           <SendPolicyBadge policy="any" />
+        </div>
+      </Block>
+
+      <Block title="Agent mascot" note="Pixel bot, deterministic per ENS name; the 5x5 identity glyph sits on its chest. Animations stop under reduced motion.">
+        <div className="flex flex-wrap items-end gap-6 rounded-lg border bg-card/50 p-4">
+          {(["active", "provisioning", "revoked", "failed"] as const).map((st) => (
+            <div key={st} className="flex flex-col items-center gap-2">
+              <AgentMascot seed="alex.vikrant.nanitecom.eth" status={st} className="h-24 w-[90px]" />
+              <StateLabel>{st}</StateLabel>
+            </div>
+          ))}
+          {["scout.vikrant.nanitecom.eth", "mira.vikrant.nanitecom.eth", "otto.vikrant.nanitecom.eth", "juno.vikrant.nanitecom.eth", "bex.vikrant.nanitecom.eth"].map((n) => (
+            <div key={n} className="flex flex-col items-center gap-2">
+              <AgentMascot seed={n} className="h-24 w-[90px]" />
+              <StateLabel>{n.split(".")[0]}</StateLabel>
+            </div>
+          ))}
+          <div className="flex flex-col items-center gap-2">
+            <div className="size-12 p-1"><AgentGlyph seed="alex.vikrant.nanitecom.eth" /></div>
+            <StateLabel>glyph</StateLabel>
+          </div>
         </div>
       </Block>
 

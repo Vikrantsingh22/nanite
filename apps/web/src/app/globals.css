@@ -242,3 +242,59 @@
   }
   .caret::after { animation: none; }
 }
+
+/* AgentMascot: pixel bot. Colours per state, then idle/hover/state animations. */
+.mascot {
+  --m-shell: color-mix(in oklab, var(--foreground) 58%, var(--card));
+  --m-screen: var(--background);
+  --m-ink: var(--primary);
+  --m-ink-dim: color-mix(in oklab, var(--primary) 55%, var(--background));
+  overflow: visible;
+}
+.mascot[data-state="revoked"] {
+  --m-shell: color-mix(in oklab, var(--muted-foreground) 45%, var(--card));
+  --m-ink: var(--muted-foreground);
+  --m-ink-dim: var(--muted-foreground);
+}
+.mascot[data-state="failed"] {
+  --m-ink: var(--destructive);
+  --m-ink-dim: color-mix(in oklab, var(--destructive) 60%, var(--background));
+}
+.mascot .m-shell { fill: var(--m-shell); }
+.mascot .m-screen { fill: var(--m-screen); }
+.mascot .m-ink { fill: var(--m-ink); }
+.mascot .m-ink-dim { fill: var(--m-ink-dim); }
+.mascot .m-tip { fill: var(--m-ink); }
+.mascot[data-state="revoked"] .m-tip { fill: var(--m-shell); }
+
+.mascot .mascot-bot { animation: mascot-bob var(--mascot-dur, 5s) steps(1) infinite; animation-delay: var(--mascot-delay, 0s); }
+.mascot .mascot-tip { animation: mascot-pulse 2.4s ease-in-out infinite; animation-delay: var(--mascot-delay, 0s); }
+.mascot[data-state="provisioning"] .mascot-tip { animation-duration: 0.8s; }
+.mascot[data-state="revoked"] .mascot-tip, .mascot[data-state="failed"] .mascot-tip { animation: none; }
+.mascot .mascot-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mascot-blink var(--mascot-dur, 5s) infinite;
+  animation-delay: var(--mascot-delay, 0s);
+}
+.mascot .mascot-dot { animation: mascot-type 0.9s steps(1) infinite; }
+.mascot .mascot-z { animation: mascot-z 3s steps(3) infinite; animation-delay: var(--mascot-delay, 0s); }
+.mascot[data-state="failed"] .mascot-bot { animation: mascot-jitter 3.2s steps(1) infinite; animation-delay: var(--mascot-delay, 0s); }
+.mascot[data-state="revoked"] .mascot-bot { animation: none; }
+
+[data-mascot-host]:is(:hover, :focus-within) .mascot[data-state="active"] .mascot-eyes { animation: none; transform: translateY(-1px); }
+[data-mascot-host]:is(:hover, :focus-within) .mascot[data-state="active"] .mascot-arm-r { animation: mascot-wave 0.5s steps(1) 3; }
+[data-mascot-host]:is(:hover, :focus-within) .mascot[data-state="active"] .mascot-tip { animation: mascot-flash 0.3s steps(1) 4; }
+
+@keyframes mascot-bob { 0%, 55% { transform: translateY(0); } 56%, 100% { transform: translateY(0.5px); } }
+@keyframes mascot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes mascot-blink { 0%, 90%, 100% { transform: scaleY(1); } 93%, 96% { transform: scaleY(0.1); } }
+@keyframes mascot-type { 0%, 100% { opacity: 1; } 34%, 66% { opacity: 0.2; } }
+@keyframes mascot-z { 0% { transform: translate(0, 1px); opacity: 0; } 34% { opacity: 1; } 100% { transform: translate(0.5px, -1px); opacity: 0; } }
+@keyframes mascot-jitter { 0%, 88%, 94%, 100% { transform: translateX(0); } 91% { transform: translateX(-0.5px); } 97% { transform: translateX(0.5px); } }
+@keyframes mascot-wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes mascot-flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot *, [data-mascot-host]:is(:hover, :focus-within) .mascot * { animation: none !important; transform: none !important; }
+}

@@ -6,10 +6,9 @@ import { InboxIcon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { MailDomainCard } from "@/components/dashboard/mail-domain-card"
 import { MailShell, SessionGate } from "@/components/dashboard/mail-shell"
-import { AgentGlyph, EnsName } from "@/components/nanite"
+import { AgentMascot, EnsName } from "@/components/nanite"
 import { UnlockLink } from "@/components/unlock-link"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -52,16 +51,14 @@ export function AgentStatusBadge({ status }: { status: AgentSummary["status"] })
 }
 
 function AgentTile({ agent }: { agent: AgentSummary }) {
-  const revoked = agent.status === "revoked" || agent.status === "failed"
   return (
-    <Card data-testid="agent-tile">
+    <Card data-testid="agent-tile" data-mascot-host>
       <CardHeader className="grid-cols-[auto_1fr_auto] items-center gap-3">
-        <Avatar size="lg" className="rounded-md after:rounded-md">
-          <AvatarFallback className="rounded-md bg-muted p-1.5">
-            <AgentGlyph seed={agent.ensName} className={revoked ? "fill-muted-foreground" : undefined} />
-          </AvatarFallback>
-        </Avatar>
+        <div className="flex h-14 w-14 items-center justify-center rounded-md bg-muted">
+          <AgentMascot seed={agent.ensName} label={agent.ensName} status={agent.status} className="h-12 w-[45px]" />
+        </div>
         <div className="flex min-w-0 flex-col gap-1">
+          <span className="font-mono text-[10px] uppercase leading-none tracking-wider text-primary">AI agent</span>
           <EnsName name={agent.ensName} showStatus={false} />
           <span className="truncate font-mono text-xs text-muted-foreground">{agent.email}</span>
         </div>

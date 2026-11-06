@@ -1,6 +1,6 @@
 import { cn } from "cn"
 
-function hash(input: string) {
+export function hash(input: string) {
   let h = 2166136261
   for (let i = 0; i < input.length; i++) {
     h ^= input.charCodeAt(i)
@@ -9,8 +9,8 @@ function hash(input: string) {
   return h >>> 0
 }
 
-/** Deterministic 5x5 mirrored pixel glyph derived from the agent's name. */
-export function AgentGlyph({ seed, className }: { seed: string; className?: string }) {
+/** Cells of the deterministic 5x5 mirrored identity pattern for a seed. */
+export function glyphCells(seed: string) {
   let h = hash(seed)
   const cells: [number, number][] = []
   for (let y = 0; y < 5; y++) {
@@ -22,6 +22,12 @@ export function AgentGlyph({ seed, className }: { seed: string; className?: stri
       }
     }
   }
+  return cells
+}
+
+/** Deterministic 5x5 mirrored pixel glyph derived from the agent's name. */
+export function AgentGlyph({ seed, className }: { seed: string; className?: string }) {
+  const cells = glyphCells(seed)
   return (
     <svg
       viewBox="0 0 5 5"

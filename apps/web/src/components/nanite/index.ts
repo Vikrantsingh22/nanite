@@ -1,5 +1,6 @@
 export * from "./agent-card"
 export * from "./agent-glyph"
+export * from "./agent-mascot"
 export * from "./arkiv-entity-chip"
 export * from "./ens-name"
 export * from "./inbox-row"

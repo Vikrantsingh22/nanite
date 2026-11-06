@@ -1,12 +1,11 @@
 import { MailIcon, ShieldOffIcon } from "lucide-react"
 import { cn } from "cn"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 
-import { AgentGlyph } from "./agent-glyph"
+import { AgentMascot, type AgentMascotStatus } from "./agent-mascot"
 import { EnsName } from "./ens-name"
 import { SendPolicyBadge, type SendPolicy } from "./send-policy-badge"
 
@@ -16,6 +15,8 @@ type AgentCardProps = {
   unread: number
   policy: SendPolicy
   revoked?: boolean
+  /** Mascot state; defaults to active (or revoked when `revoked`). */
+  status?: AgentMascotStatus
   onRevoke?: () => void
   className?: string
 }
@@ -27,18 +28,18 @@ export function AgentCard({
   unread,
   policy,
   revoked = false,
+  status,
   onRevoke,
   className,
 }: AgentCardProps) {
   return (
-    <Card className={cn(revoked && "bg-muted/40", className)}>
+    <Card data-mascot-host className={cn(revoked && "bg-muted/40", className)}>
       <CardHeader className="grid-cols-[auto_1fr_auto] items-center gap-3">
-        <Avatar size="lg" className="rounded-md after:rounded-md">
-          <AvatarFallback className="rounded-md bg-muted p-1.5">
-            <AgentGlyph seed={ensName} className={cn(revoked && "fill-muted-foreground")} />
-          </AvatarFallback>
-        </Avatar>
+        <div className="flex h-14 w-14 items-center justify-center rounded-md bg-muted">
+          <AgentMascot seed={ensName} label={ensName} status={status ?? (revoked ? "revoked" : "active")} className="h-12 w-[45px]" />
+        </div>
         <div className="flex min-w-0 flex-col gap-1">
+          <span className="font-mono text-[10px] uppercase leading-none tracking-wider text-primary">AI agent</span>
           <EnsName name={ensName} showStatus={false} />
           <span
             className={cn(
