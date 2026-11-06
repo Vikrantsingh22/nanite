@@ -168,6 +168,12 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("link", { name: /new agent/i })).toHaveAttribute("href", "/agents/new");
     await expect(page.getByText("provisioning")).toBeVisible();
     await expect(page.getByText(/your mailbox is locked/i)).toBeVisible();
+    // Regression: ENS names and addresses on the agent tiles are shown in full (wrapped), never clipped with "…", and the page never scrolls sideways.
+    const clipped = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>("[data-testid=agent-tile] *")).filter((el) => getComputedStyle(el).textOverflow === "ellipsis" && el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent),
+    );
+    expect(clipped).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await shot(page, "dashboard", width);
     if (width === 1440) await axe(page, "/dashboard");
     expect(problems.filter((p) => !ignorable(p))).toEqual([]);
