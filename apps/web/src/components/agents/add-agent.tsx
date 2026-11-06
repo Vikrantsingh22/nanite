@@ -317,9 +317,12 @@ export function AddAgent() {
                     className="font-mono"
                   />
                   <InputGroupAddon align="inline-end">
-                    <InputGroupText className="max-w-[40vw] truncate font-mono">.{session.status === "authed" ? (session.me.username ?? "") : ""}.{ENS_PARENT}</InputGroupText>
+                    <InputGroupText className="max-w-[40vw] truncate font-mono max-sm:hidden">.{session.status === "authed" ? (session.me.username ?? "") : ""}.{ENS_PARENT}</InputGroupText>
                   </InputGroupAddon>
                 </InputGroup>
+                <p className="font-mono text-xs break-all text-muted-foreground sm:hidden" data-testid="agent-name-full">
+                  {label || "name"}.{session.status === "authed" ? (session.me.username ?? "") : ""}.{ENS_PARENT}
+                </p>
                 <FieldDescription id="agent-name-hint" aria-live="polite">
                   {!label || nameOk ? "2 to 32 characters: a-z, 0-9 and inner hyphens." : "Use 2 to 32 characters: a-z, 0-9 and inner hyphens."}
                 </FieldDescription>

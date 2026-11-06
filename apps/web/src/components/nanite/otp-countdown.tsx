@@ -47,7 +47,7 @@ export function OtpCountdown({
   return (
     <div className={cn("flex flex-col gap-3 rounded-lg border bg-card p-4", className)}>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-mono text-xs text-muted-foreground">
+        <span className="min-w-0 break-words font-mono text-xs text-muted-foreground">
           {from ? `one-time code from ${from}` : "one-time code"}
         </span>
         {expired ? (

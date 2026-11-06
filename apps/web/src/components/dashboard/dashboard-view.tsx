@@ -6,7 +6,7 @@ import { InboxIcon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { MailDomainCard } from "@/components/dashboard/mail-domain-card"
 import { MailShell, SessionGate } from "@/components/dashboard/mail-shell"
-import { AgentMascot, EnsName } from "@/components/nanite"
+import { AgentMascot, EmailText, EnsName } from "@/components/nanite"
 import { UnlockLink } from "@/components/unlock-link"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -53,16 +53,18 @@ export function AgentStatusBadge({ status }: { status: AgentSummary["status"] })
 function AgentTile({ agent }: { agent: AgentSummary }) {
   return (
     <Card data-testid="agent-tile" data-mascot-host>
-      <CardHeader className="grid-cols-[auto_1fr_auto] items-center gap-3">
+      <CardHeader className="grid-cols-[auto_1fr] items-center gap-3">
         <div className="flex h-14 w-14 items-center justify-center rounded-md bg-muted">
           <AgentMascot seed={agent.ensName} label={agent.ensName} status={agent.status} className="h-12 w-[45px]" />
         </div>
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase leading-none tracking-wider text-primary">AI agent</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[10px] uppercase leading-none tracking-wider text-primary">AI agent</span>
+            <AgentStatusBadge status={agent.status} />
+          </div>
           <EnsName name={agent.ensName} showStatus={false} />
-          <span className="truncate font-mono text-xs text-muted-foreground">{agent.email}</span>
+          <span className="break-words font-mono text-xs text-muted-foreground"><EmailText value={agent.email} /></span>
         </div>
-        <AgentStatusBadge status={agent.status} />
       </CardHeader>
       <CardContent />
       <CardFooter className="justify-end gap-2 border-t bg-muted/40 py-2">

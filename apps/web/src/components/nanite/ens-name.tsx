@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { BadgeCheckIcon, CheckIcon, CopyIcon, HourglassIcon } from "lucide-react"
 import { cn } from "cn"
 
@@ -32,11 +33,22 @@ export function EnsName({
   const rest = dot === -1 ? "" : name.slice(dot)
 
   return (
-    <span className={cn("inline-flex max-w-full items-center gap-1.5", className)}>
-      <span className="inline-flex h-6 min-w-0 items-center gap-1 rounded-sm border bg-card pl-2 pr-0.5 font-mono text-xs">
-        <span className="truncate">
+    <span className={cn("inline-flex max-w-full flex-wrap items-center gap-1.5", className)}>
+      <span className="inline-flex min-h-6 min-w-0 items-center gap-1 rounded-sm border bg-card pl-2 pr-0.5 font-mono text-xs">
+        <span className="min-w-0 break-words py-0.5" title={name}>
           <span className="text-foreground">{label}</span>
-          <span className="text-muted-foreground">{rest}</span>
+          <span className="text-muted-foreground">
+            {rest.split(".").map((part, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && (
+                  <>
+                    .<wbr />
+                  </>
+                )}
+                {part}
+              </React.Fragment>
+            ))}
+          </span>
         </span>
         {copyable && (
           <Tooltip>
