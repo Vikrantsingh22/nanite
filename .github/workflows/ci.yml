@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: docker compose run --rm tools npm ci --no-audit --no-fund
+      - name: Lint
+        run: docker compose run --rm tools npm run lint
+      - name: Typecheck
+        run: docker compose run --rm tools npm run typecheck
+      - name: E2E typecheck
+        run: |
+          docker compose --profile e2e run --rm --no-deps e2e npm ci --no-audit --no-fund
+          docker compose --profile e2e run --rm --no-deps e2e npm run typecheck
+      - name: Build
+        run: docker compose run --rm tools npm run build
+        env:
+          DATABASE_URL: postgres://nanite:nanite@db:5432/nanite
+      - name: Down
+        if: always()
+        run: docker compose down -v
