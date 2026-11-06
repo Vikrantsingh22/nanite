@@ -64,7 +64,10 @@ export function createInboundProcessor(deps: InboundDeps, log: (fields: Record<s
       const { db } = deps;
       const now = (deps.now?.() ?? new Date()).getTime();
       const startup = opts.startup === true;
-      const before = (ms: number) => new Date(now - (startup ? 0 : ms));
+      // A fresh process has nothing in flight, so at startup no row is "too young": no age condition at all. (A strict
+      // `updated_at < now` against the JS clock also misses rows written in the same millisecond or by a DB clock
+      // that is a hair ahead, which made the crash-recovery tests flaky.)
+      const olderThan = (ms: number) => (startup ? undefined : lt(webhookEvents.updatedAt, new Date(now - ms)));
 
       // Events that used up their attempts are parked as failed (visible in the table, not retried).
       await db
@@ -74,7 +77,7 @@ export function createInboundProcessor(deps: InboundDeps, log: (fields: Record<s
           and(
             eq(webhookEvents.status, "processing"),
             sql`${webhookEvents.attempts} >= ${MAX_EVENT_ATTEMPTS}`,
-            lt(webhookEvents.updatedAt, before(STALE_PROCESSING_MS)),
+            olderThan(STALE_PROCESSING_MS),
             opts.eventIdPrefix ? like(webhookEvents.providerEventId, `${opts.eventIdPrefix}%`) : undefined,
           ),
         );
@@ -89,9 +92,9 @@ export function createInboundProcessor(deps: InboundDeps, log: (fields: Record<s
             opts.eventIdPrefix ? like(webhookEvents.providerEventId, `${opts.eventIdPrefix}%`) : undefined,
             sql`${webhookEvents.attempts} < ${MAX_EVENT_ATTEMPTS}`,
             or(
-              and(eq(webhookEvents.status, "received"), lt(webhookEvents.updatedAt, before(RECEIVED_GRACE_MS))),
-              and(eq(webhookEvents.status, "failed"), lt(webhookEvents.updatedAt, before(RETRY_DELAY_MS))),
-              and(inArray(webhookEvents.status, ["processing"]), lt(webhookEvents.updatedAt, before(STALE_PROCESSING_MS))),
+              and(eq(webhookEvents.status, "received"), olderThan(RECEIVED_GRACE_MS)),
+              and(eq(webhookEvents.status, "failed"), olderThan(RETRY_DELAY_MS)),
+              and(inArray(webhookEvents.status, ["processing"]), olderThan(STALE_PROCESSING_MS)),
             ),
           ),
         )
