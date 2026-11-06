@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import type { Db } from "../client.js";
 import { agents, apiTokens, auditLog } from "../schema.js";
 
@@ -74,6 +74,57 @@ export async function setAgentNaniteKey(
       encryptedPrivateKey: Buffer.from(key.encryptedPrivateKey),
     })
     .where(eq(agents.id, agentId));
+}
+
+/** audit_log label of an agent email extension; with status 200 the row counts toward the daily limit. */
+export const EXTEND_AUDIT_ENDPOINT = "extend";
+
+/**
+ * Atomic "check the daily extension limit, then reserve one". Counts audit_log rows labelled `extend` with status 200
+ * since `dayStart` (UTC midnight) under a transaction-scoped advisory lock per agent (same technique as reserveSend),
+ * so parallel calls cannot overshoot `limit`. No schema change: the reservation IS the audit row. Release it with
+ * `releaseExtend` when the chain write fails, so a failed extension does not use up the day's allowance.
+ */
+export async function reserveExtend(
+  db: Db,
+  input: { agentId: string; limit: number; dayStart: Date },
+): Promise<{ ok: true; id: string; used: number } | { ok: false; used: number }> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"nanite/extend/agent/" + input.agentId}, 0))`);
+    const [row] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.agentId, input.agentId),
+          eq(auditLog.endpoint, EXTEND_AUDIT_ENDPOINT),
+          eq(auditLog.statusCode, 200),
+          gte(auditLog.createdAt, input.dayStart),
+        ),
+      );
+    const used = row?.n ?? 0;
+    if (used >= input.limit) return { ok: false, used } as const;
+    const [ins] = await tx
+      .insert(auditLog)
+      .values({ agentId: input.agentId, endpoint: EXTEND_AUDIT_ENDPOINT, statusCode: 200 })
+      .returning({ id: auditLog.id });
+    if (!ins) throw new Error("audit_log insert returned no row");
+    return { ok: true, id: ins.id, used: used + 1 } as const;
+  });
+}
+
+/** Turn a reserved extension into a failed one (status 502): it no longer counts toward the daily limit. */
+export async function releaseExtend(db: Db, reservationId: string) {
+  await db.update(auditLog).set({ statusCode: 502 }).where(eq(auditLog.id, reservationId));
+}
+
+/** Extensions used today (UTC) by an agent. */
+export async function countExtendsSince(db: Db, agentId: string, since: Date): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(auditLog)
+    .where(and(eq(auditLog.agentId, agentId), eq(auditLog.endpoint, EXTEND_AUDIT_ENDPOINT), eq(auditLog.statusCode, 200), gte(auditLog.createdAt, since)));
+  return row?.n ?? 0;
 }
 
 /** Audit row: agent, endpoint label and status only. Never bodies, queries or content. */
