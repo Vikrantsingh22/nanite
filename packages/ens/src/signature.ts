@@ -10,14 +10,23 @@
  *   X-Nanite-Agent       the agent's ENS name
  *   X-Nanite-Date        the date used in the canonical string (verbatim)
  *   X-Nanite-Signature   0x signature
- *   X-Nanite-Sig-Version 2
- * (plus the normal Message-ID). A verifier resolves the ENS name, reads the `nanite.signer` text record, and
- * checks that the signature recovers to that address. The record is written only by the user or the operator.
+ *   X-Nanite-Sig-Version 3
+ *   X-Nanite-Message-Id  our own message id `<sendLogId@domain>` (signed)
+ * A verifier resolves the ENS name, reads the `nanite.signer` text record, and checks that the signature
+ * recovers to that address. The record is written only by the user or the operator.
+ *
+ * Why v3 (v2 is legacy): v2 signed the standard `Message-ID` header. Resend (Amazon SES) REPLACES that header
+ * with its own id on delivery (seen on the first real email, 2026-11-06), so v2 mail that went through Resend can
+ * never verify. v3 signs a custom header, `X-Nanite-Message-Id`, which providers keep, and the API no longer sets
+ * `Message-ID` at all (the provider owns it).
  */
 import { getAddress, isAddress, recoverMessageAddress, sha256, toBytes, type Address, type Hex } from "viem";
 
 export const SIGNER_KEY = "nanite.signer";
-export const SIG_VERSION = "2";
+/** Current signature version (sent in X-Nanite-Sig-Version). */
+export const SIG_VERSION = "3";
+/** Legacy version: signs the `Message-ID` header, which Resend/SES replaces. Still verifiable, usually fails. */
+export const SIG_VERSION_V2 = "2";
 
 const sha256Hex = (s: string): string => sha256(toBytes(s)).slice(2);
 
@@ -53,6 +62,35 @@ export function canonicalSendStringV2(f: CanonicalFields): string {
   ].join("\n");
 }
 
+export interface CanonicalFieldsV3 {
+  ensName: string;
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  date: string;
+  /** The X-Nanite-Message-Id header, verbatim (including angle brackets). */
+  naniteMessageId: string;
+}
+
+/**
+ * `nanite-send-v3\n<ens>\n<from>\n<to>\n<sha256(subject)>\n<sha256(body)>\n<date>\n<x-nanite-message-id>`
+ * Same layout as v2, but the last line is the `X-Nanite-Message-Id` header (our own id, kept by providers)
+ * instead of `Message-ID` (replaced by Resend/SES).
+ */
+export function canonicalSendStringV3(f: CanonicalFieldsV3): string {
+  return [
+    "nanite-send-v3",
+    f.ensName,
+    f.from,
+    f.to,
+    sha256Hex(f.subject),
+    sha256Hex(f.body),
+    f.date,
+    f.naniteMessageId,
+  ].join("\n");
+}
+
 export type SignatureFailure =
   | "missing_headers"
   | "unsupported_version"
@@ -70,7 +108,12 @@ export interface VerifyResult {
   signer: string | null;
   /** "ok" when valid, otherwise a SignatureFailure. */
   reason: "ok" | SignatureFailure;
+  /** Extra explanation for a known cause of failure (set for legacy v2 mail that does not verify). */
+  hint?: string;
 }
+
+const V2_HINT =
+  "Sig-Version 2 signs the Message-ID header, which Resend/Amazon SES replaces on delivery, so v2 mail sent through Resend cannot verify. Only v3 (X-Nanite-Message-Id) survives.";
 
 /** Anything that can read an ENS text record fresh (NameReader, or `{ getText }` over a viem client). */
 export interface TextReader {
@@ -88,8 +131,8 @@ const header = (headers: Record<string, string | string[] | undefined>, name: st
 };
 
 /**
- * Verify the signature headers of one mail. `from`, `to`, `subject` and `body` are the values the verifier
- * actually received. Never throws for bad input: it returns `{valid:false, reason}`.
+ * Verify the signature headers of one mail (v3 by default, legacy v2 by its Sig-Version header). `from`, `to`,
+ * `subject` and `body` are the values the verifier actually received. Never throws for bad input: it returns `{valid:false, reason}`.
  *
  * It proves that the holder of the agent's current `nanite.signer` key signed exactly these fields. It does not
  * check the date's freshness and it does not decide whether the agent name itself is one you trust.
@@ -108,11 +151,19 @@ export async function verifyNaniteSignature(
   const date = header(mail.headers, "X-Nanite-Date");
   const sig = header(mail.headers, "X-Nanite-Signature");
   const version = header(mail.headers, "X-Nanite-Sig-Version");
-  const messageId = header(mail.headers, "Message-ID");
-  const fail = (reason: SignatureFailure, signer: string | null = null): VerifyResult => ({ valid: false, agent, signer, reason });
+  // The id that is signed: X-Nanite-Message-Id for v3 (default), the Message-ID header for legacy v2.
+  const idHeader = version === SIG_VERSION_V2 ? "Message-ID" : "X-Nanite-Message-Id";
+  const signedId = header(mail.headers, idHeader);
+  const fail = (reason: SignatureFailure, signer: string | null = null): VerifyResult => ({
+    valid: false,
+    agent,
+    signer,
+    reason,
+    ...(version === SIG_VERSION_V2 && reason === "signer_mismatch" ? { hint: V2_HINT } : {}),
+  });
 
-  if (!agent || !date || !sig || !messageId || !version) return fail("missing_headers");
-  if (version !== SIG_VERSION) return fail("unsupported_version");
+  if (!agent || !date || !sig || !version || !signedId) return fail("missing_headers");
+  if (version !== SIG_VERSION && version !== SIG_VERSION_V2) return fail("unsupported_version");
   if (!/^0x[0-9a-fA-F]{130}$/.test(sig)) return fail("malformed_signature");
 
   let record: string | null;
@@ -128,8 +179,9 @@ export async function verifyNaniteSignature(
 
   let recovered: Address;
   try {
+    const fields = { ensName: agent, from: mail.from, to: mail.to, subject: mail.subject, body: mail.body, date };
     recovered = await recoverMessageAddress({
-      message: canonicalSendStringV2({ ensName: agent, from: mail.from, to: mail.to, subject: mail.subject, body: mail.body, date, messageId }),
+      message: version === SIG_VERSION_V2 ? canonicalSendStringV2({ ...fields, messageId: signedId }) : canonicalSendStringV3({ ...fields, naniteMessageId: signedId }),
       signature: sig as Hex,
     });
   } catch {
