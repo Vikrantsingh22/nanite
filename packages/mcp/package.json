@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "description": "Nanite MCP server (stdio) and self-hosted agent kit: nanite-mcp keygen, local decrypt, local signing.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "bin": {
@@ -17,11 +18,13 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
+    "@nanite/crypto": "0.0.1",
+    "tsx": "4.19.2",
+    "viem": "2.21.54",
     "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/node": "22.10.2",
-    "tsx": "4.19.2",
     "typescript": "5.9.3",
     "vitest": "4.1.12"
   }

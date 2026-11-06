@@ -16,6 +16,7 @@
     "live-check": "tsx scripts/live-check.ts"
   },
   "dependencies": {
+    "@nanite/crypto": "0.0.1",
     "viem": "2.21.54"
   },
   "devDependencies": {

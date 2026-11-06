@@ -19,6 +19,8 @@
     "@nanite/crypto": "0.0.1",
     "@nanite/db": "0.0.1",
     "@nanite/ens": "0.0.1",
+    "@nanite/mcp": "0.0.1",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.13",
     "viem": "2.21.54"
