@@ -1,0 +1,60 @@
+{
+  "signature": "0xababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+  "bundle": {
+    "publicKey": "QZ7rVbKA8Zxy5w2I8y0lE4RvBqUkIM3GUC4wtqAmzwg=",
+    "keyId": "595f2d68d8427df0",
+    "walletSalt": "9UVNLiwLtKIyEnJgSIH4SA==",
+    "recoverySalt": "3vQL1nEeH96mh+4eYRvPwg==",
+    "wrappedPrivateKeyWallet": "AQ8tPGzgZU74r6swgAnZyASLOg0eZnSEQ7m7DoOMoFQIyLnfZjALrGdgKgM/ELhVYCusL6ZStu+Khuwkjy104x2atNPH09JFQw==",
+    "wrappedPrivateKeyRecovery": "AY9CMYOgqiHiZPW62Zhy4b05PfOGxCRzcsSNtGDw9+LbYkVUHoIk1cuvCjIFRbJ9ng67eeqvwovhvp8NGE3jDE0pl1i/rmvAzg==",
+    "wrappedSeedWallet": "AV+2xWBF09q3MN4v8TAe6ftr+RdjI/HrX4A9S8arNugazH4PjMAUjfBdeYM7HesRRPnaYfHcPa4ib843iKRQymigZtLLl1Vv6A==",
+    "wrappedSeedRecovery": "AeY+cTfLWqJXoqS4/Aprqit54c45rRnAlPRhRQdbBp5QsnuRGxidhuLAzeiifvAJuIoN5ncXNKGBgBm60GuZEdbndOpg4O9HtQ==",
+    "passphraseMode": false
+  },
+  "emails": [
+    {
+      "name": "welcome",
+      "type": "conversation",
+      "subject": "Welcome to Nanite",
+      "keyIds": [
+        "595f2d68d8427df0"
+      ],
+      "ciphertext": "AS6qvOYCOe/VJ/zIussxtKdBS9q2yXIFNAvHrSZtxo09S/AJuM+LxL+3NUnR7cdLNaN0kDG0Ay6SZ1RkH5Ty7kEt855slR2HUrT1VOAQMj448Kzv4LXmd1LkPZylgFpbSQ5oREJW7d5tX1D0QAFnes0s3Ds/J/lsHwX8HU6cmAxyZ7XCrsXbUiBCh+mHRYEMdAPDCB1ZE34LudqM2e3K7AERhDgsyfsx1j+eRRfmK0cuJRz+U5vgpbIFt/MtI0gxjToNgow=",
+      "wrappedKeys": "AQFZXy1o2EJ98OfihY3jbXaNfKq+X3JMckCmOnb++K5BhwGyRlHde2t8vN2dwSgCHPAdEXcqNFe2Lp68ApH+gJCEBQkSuhuq7hj9R1BwzixcjwX+/eZ4ZzYa",
+      "nonce": "U6yp7wUlYmAIIQkjrGKeMC7tEvr04+U6"
+    },
+    {
+      "name": "html",
+      "type": "conversation",
+      "subject": "Weekly digest (HTML)",
+      "keyIds": [
+        "595f2d68d8427df0"
+      ],
+      "ciphertext": "AelQ9rePv0j7nL3qNeAQSzFXNJ8tfPZ+KeujghqUGWPV2oKP7FGYsgANQn9mBmh73SwQ+2iJHEYiN1GxlhEOHcB8y5dyjVqHr6dn8Ll15bmMC20Jfw6sLkFwaYJJj6U5BXuUIrrq+npQs/RTMZ3fwbTiw8yCImG+nhyfLbCAF1dN9FKH524PKQ0Xx4+XrpuSR/fNj9a5ZMfgA4SyALJ1ehuwboog2ruBdTqHIHuzeg5PyjgCXuVYjpfeSBbYsD9mTpG5e8Br5/c616FdVM0MrwdibDFXLfVyJw81tAY/DGbuavo+peNpO5cOSzAJ7I8BLIFHunhq3h6VwfNoff7DDocDFzaKf8djT1n3emP3+5MvqGp0PVy7y/ugvQta790VCIv+WI9PnruB7kOcNxGnGdWB2J4b2tQJH7kkalRZkBWOgBfXntqlvPPbftTOUnNJ5VQBNZLOULP7kAvUQS88OOhRFVKsPFoJlosTcmhhnP1tQ9e5ootXPE94auUTq1dDGNpvrPPel+GwW2BWKkJGe2YajccbZWjKE7/kabRPII9VToOyEmV1p0KHwwwI5kUwzbLUteevEK3VZDP2mFvlJDX0aiM8N+JT5wBOqJ1jL6RsX2C7ya3q+UotHy25XibHvpF9mS0ATiBsK4/Fl6QaLS5w+GOtMTliC3aJJL6KnUxbOfhG9V95XhN0ht0m12QH2jDuJXPgDmjfiGsG2yquj+54OW/ycLUPmEP3KqxABJPv/xld7S/rinjlLgy9otI4HNgSlMP6xuRUNACGU211+CGpkXk1RebSZN+sErlFzjJ4sY2e2jhSkjzZNylkaEegnKiXSPf1DdHwZ6mvS0ASoOzsWmvZeezsOuCZCIelZoFS5/ubeI5VG/pqVUFMfj2y0iuiA8USNneHZkl+3fyRfTpY4/NeWswbDgeep0lBGmnKNjlJaCXLta5dtvHcyhBvRJgzST8oKjkfvxe3cbe+++8NUDjG9FAlVx79QKzjAAiPu+j/SndJ+aAfdg+CrrZ3s1/CagQfZS2UDEY5Vv/RpbxicFUMSPCsL/+Ie7e0EX1UnbEV5TWFgEOF3Q3oUkbZUZxmVexWJUJIM2I8eolRVPDTEnQ4r+sLwkF0NiCt5EBnSmyovCkzxSblR/o9UlZf",
+      "wrappedKeys": "AQFZXy1o2EJ98BZz6nB/ABIqgQoCQz1VNO4qM733yoi7pG/dyrYXvZVlAPPmCORqrG4QPnIMpAkP5esh8fPkW8784GasoEnWPQrHI+PCrFnMbBVynH6umjZd",
+      "nonce": "BYvfKpqgPpfSAxBPdSMU1IDkeJ35NEaC"
+    },
+    {
+      "name": "otp",
+      "type": "otp",
+      "subject": "Your Acme verification code",
+      "keyIds": [
+        "595f2d68d8427df0"
+      ],
+      "ciphertext": "AdBP+r0n738WujnnMYzk1Qf6wUMpYoSUmlZrt/d5a8r39MdQhOXcwJ8shZlSnEycXZleB7e5z3CC1Mjf35LKdJmyq+oPKCZ5p94pQpg5tEfRVmoeRhOI2E3yYWp0yDy+aOKiXCP29gLRJbk7oJ172ReE5DVI6OrbxQT96FTlt5JUBy3VocPkSUU1O+72ejI=",
+      "wrappedKeys": "AQFZXy1o2EJ98A796wJd0RJzsprttTpDLRlhyT2WNU7oyPJdqu5MBoFg4pj/6Zn0aMB87Z20e4/vDZHs9H5DiQVNIlH2BaRAvybtjIWX7hFOc/7owiYo1pVk",
+      "nonce": "G6uwrPfIHAaAtf/ALaWPAjil+y03EEGU"
+    },
+    {
+      "name": "foreign",
+      "type": "conversation",
+      "subject": "Not for you",
+      "keyIds": [
+        "100004bb0fc689ed"
+      ],
+      "ciphertext": "AbkNiUdWMB52b8SOWdIsI7rewYxTUECcjbNUhYIdww34IXgdZ8ZlnAwVlzya4q8Pft3UVaEh76zVQNbVdUaC8ebKavu9QwYA1N/lmA==",
+      "wrappedKeys": "AQEQAAS7D8aJ7WTvzU7s8CZB0XUU/25164INqzDKXdqdSiNQ8iFF520hW1IwndFid5BiiQH6+ZqqWQcLIrD6nL+1RjJ+tScxx305zkiqNFTwOhv2F7QWsRfG",
+      "nonce": "TnZcN2J/ObkqaBsbPodkZMHbD98NdbEx"
+    }
+  ]
+}
