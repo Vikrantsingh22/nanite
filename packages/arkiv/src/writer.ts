@@ -26,21 +26,24 @@ export { SerialQueue } from './queue';
 export * from './errors';
 
 export const DEFAULT_OTP_TTL_SECONDS = 300;
+/** Default lifetime of conversation and sent mail: 2 days (the agent's ENS `nanite.mail-ttl` overrides it). */
+export const DEFAULT_MAIL_TTL_SECONDS = 48 * 3600;
 
 /** Plain-data expiry decision, convertible to an SDK `ExpirationTime`. */
 export type ExpiryPlan = { kind: 'seconds'; seconds: number } | { kind: 'max' };
 
 /**
- * Expiry policy: OTPs are short-lived (default 5 min), conversation and sent mail get the chain
- * maximum (7,884,000 blocks, about 182.5 days) and are extended later by a retention job.
- * `override`: seconds, or 'max'. Durations must be multiples of 2 s (block time), so we round up.
+ * Expiry policy: OTPs are short-lived (default 5 min), conversation and sent mail default to 2 days
+ * (callers pass the agent's `nanite.mail-ttl` as `override`; extended later on request via `extendEmail`).
+ * `override`: seconds, or 'max' (the chain maximum, 7,884,000 blocks, about 182.5 days).
+ * Durations must be multiples of 2 s (block time), so we round up.
  */
 export function expiryPlan(type: EmailType, opts: { otpTtlSeconds?: number; override?: number | 'max' } = {}): ExpiryPlan {
   const o = opts.override;
   if (o === 'max') return { kind: 'max' };
   if (o !== undefined) return secondsPlan(o);
   if (type === 'otp') return secondsPlan(opts.otpTtlSeconds ?? DEFAULT_OTP_TTL_SECONDS);
-  return { kind: 'max' };
+  return secondsPlan(DEFAULT_MAIL_TTL_SECONDS);
 }
 function secondsPlan(s: number): ExpiryPlan {
   if (!Number.isFinite(s) || s <= 0) throw new InvalidEmailFieldsError('expiry seconds must be positive');
@@ -87,7 +90,7 @@ export interface WriteEmailResult {
 export interface WriterBackend {
   predictEntityKeys(args: { owner: Address; count: number }): Promise<{ key: Hex; salt: bigint }[]>;
   executeBatch(args: unknown): Promise<{ txHash: Hex; createdEntities: Hex[] }>;
-  extendEntity(args: { entityKey: Hex; expiration: unknown }): Promise<{ txHash: Hex }>;
+  extendEntity(args: { entityKey: Hex; expiration: unknown }): Promise<{ txHash: Hex; /** New expiry block as recorded by the engine. */ expiresAt?: bigint }>;
 }
 
 export interface ArkivWriterConfig {
@@ -221,15 +224,16 @@ export function createArkivWriter(config: ArkivWriterConfig) {
   }
 
   /**
-   * Extend an entity to the chain maximum (or `expiresIn` seconds from now). Works for the operator
-   * only on entities created with permissionlessExtension (conversation/sent); OTPs revert.
+   * Extend an entity to the chain maximum (or `expiresIn` seconds from now; this SETS the new expiry, it does not
+   * add to the old one, and the chain refuses to shorten). Works for the operator only on entities created with
+   * permissionlessExtension (conversation/sent); OTPs revert. Runs in the same single-flight queue as writes.
    */
-  function extendEmail(entityKey: Hex, o: { expiresIn?: number | 'max' } = {}): Promise<{ txHash: Hex }> {
+  function extendEmail(entityKey: Hex, o: { expiresIn?: number | 'max' } = {}): Promise<{ txHash: Hex; expiresAtBlock?: bigint }> {
     const expiration = toExpiration(o.expiresIn === undefined || o.expiresIn === 'max' ? { kind: 'max' } : secondsPlan(o.expiresIn));
     return queue.run(async () => {
       try {
         const r = await be.extendEntity({ entityKey, expiration });
-        return { txHash: r.txHash };
+        return { txHash: r.txHash, ...(r.expiresAt !== undefined ? { expiresAtBlock: r.expiresAt } : {}) };
       } catch (e) {
         throw new ArkivWriteError(`extend failed: ${safeMsg(e)}`, 1);
       }

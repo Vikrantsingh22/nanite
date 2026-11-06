@@ -1,3 +1,4 @@
+import { ExpirationTime } from '@arkiv-network/sdk';
 import { generatePrivateKey, privateKeyToAddress } from 'viem/accounts';
 import type { Hex } from 'viem';
 import { describe, expect, it } from 'vitest';
@@ -105,6 +106,37 @@ describe('writeEmail', () => {
     );
   });
 
+  it('lifetimes (T3.8): mail defaults to 2 days, the per-agent TTL overrides it, OTPs use otpTtlSeconds, none of them is "max"', async () => {
+    const b = fakeBackend();
+    const w = writer(b, { otpTtlSeconds: 600 });
+    await w.writeEmail({ fields: fields({ type: 'conversation' }), owner: USER });
+    await w.writeEmail({ fields: fields({ type: 'sent' }), owner: USER, expiresIn: 6 * 3600 });
+    await w.writeEmail({ fields: fields({ type: 'otp' }), owner: USER });
+    await w.writeEmail({ fields: fields({ type: 'otp' }), owner: USER, expiresIn: 61 });
+    const exp = b.batches.map((x) => x.creates[0].expiration);
+    expect(exp[0]).toEqual(ExpirationTime.fromSeconds(172_800));
+    expect(exp[1]).toEqual(ExpirationTime.fromSeconds(21_600));
+    expect(exp[2]).toEqual(ExpirationTime.fromSeconds(600));
+    expect(exp[3]).toEqual(ExpirationTime.fromSeconds(62)); // rounded up to a 2 s block multiple
+    for (const e of exp) expect(e).not.toEqual(ExpirationTime.max());
+    // OTPs stay non-extendable whatever their lifetime
+    expect(b.batches[2].creates[0].flags).toBeUndefined();
+    expect(b.batches[3].creates[0].flags).toBeUndefined();
+  });
+
+  it('extendEmail sets the new expiry from now in seconds and reports the block the engine recorded', async () => {
+    const b = fakeBackend();
+    let seen: any;
+    b.extendEntity = async (a: any) => {
+      seen = a;
+      return { txHash: `0x${'cd'.repeat(32)}` as Hex, expiresAt: 4242n };
+    };
+    const r = await writer(b).extendEmail(`0x${'01'.repeat(32)}`, { expiresIn: 30 * 86_400 });
+    expect(seen.expiration).toEqual(ExpirationTime.fromSeconds(30 * 86_400));
+    expect(r).toEqual({ txHash: `0x${'cd'.repeat(32)}`, expiresAtBlock: 4242n });
+    expect(() => writer(b).extendEmail(`0x${'01'.repeat(32)}`, { expiresIn: 0 })).toThrow(InvalidEmailFieldsError);
+  });
+
   it('skips the transfer when the owner is the operator itself', async () => {
     const b = fakeBackend();
     await writer(b).writeEmail({ fields: fields(), owner: OP });
@@ -194,11 +226,12 @@ describe('single-flight queue', () => {
 });
 
 describe('expiry policy', () => {
-  it('otp short (default 300 s), conversation and sent max, overrides honoured', () => {
+  it('otp short (default 300 s), conversation and sent 2 days, overrides honoured', () => {
     expect(expiryPlan('otp')).toEqual({ kind: 'seconds', seconds: 300 });
     expect(expiryPlan('otp', { otpTtlSeconds: 61 })).toEqual({ kind: 'seconds', seconds: 62 });
-    expect(expiryPlan('conversation')).toEqual({ kind: 'max' });
-    expect(expiryPlan('sent')).toEqual({ kind: 'max' });
+    expect(expiryPlan('conversation')).toEqual({ kind: 'seconds', seconds: 172800 });
+    expect(expiryPlan('sent')).toEqual({ kind: 'seconds', seconds: 172800 });
+    expect(expiryPlan('sent', { override: 'max' })).toEqual({ kind: 'max' });
     expect(expiryPlan('conversation', { override: 3600 })).toEqual({ kind: 'seconds', seconds: 3600 });
     expect(expiryPlan('otp', { override: 'max' })).toEqual({ kind: 'max' });
     expect(() => expiryPlan('otp', { override: 0 })).toThrow(InvalidEmailFieldsError);
