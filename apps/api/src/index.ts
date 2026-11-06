@@ -92,6 +92,7 @@ const outbound =
           ens: {
             readSendPolicy: (name: string) => ens.readSendPolicy(name),
             resolveEmail: async (name: string) => (await ens.resolveAgent(name)).email,
+            readSigner: (name: string) => ens.readSigner(name),
           },
           senderHashSecret: env.senderHashSecret,
           sharedMailDomain,
