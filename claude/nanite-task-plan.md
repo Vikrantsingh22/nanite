@@ -31,7 +31,7 @@ Update this table at the end of every task (Todo / In progress / Done / Cut).
 | T3.8 | Email expiry control (OTP ttl, 2-day default, extend_email, Keep) | 3h | Done (fakes only; needs review; live check pending) |
 | T4.1 | OTP expiry and demo data | 1.5h | Done (live: OTP gone at its expiry block; seed-demo.ts) |
 | T4.2 | Arkiv docs and README | 2h | Mostly done (AI-use note + web claims to confirm after T3.3) |
-| T4.3 | Deploy and live link | 1.5h | Running (plan in docs/deployment.md; X1 building prod files) |
+| T4.3 | Deploy and live link | 1.5h | Done (live 2026-11-07: web https://nanite.itsvikrant.tech, API https://api.nanite.itsvikrant.tech; smoke test passed; self-hosted demo ran on production) |
 | T4.4 | Video, QA, submission | 2h | Todo |
 | S1 | Stretch: Swarm for attachments | 3h | Only if time remains |
 | S2 | Stretch: self-hosted agent container | 3h | Only if time remains |

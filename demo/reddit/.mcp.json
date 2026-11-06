@@ -2,7 +2,7 @@
   "mcpServers": {
     "nanite": {
       "type": "http",
-      "url": "http://localhost:4000/mcp",
+      "url": "https://api.nanite.itsvikrant.tech/mcp",
       "headers": {
         "Authorization": "Bearer ${NANITE_AGENT_TOKEN}"
       }

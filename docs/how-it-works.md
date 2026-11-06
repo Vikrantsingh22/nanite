@@ -954,7 +954,7 @@ Other properties worth stating:
 
 ## 15. Deployment and operations
 
-Status: the deployment files are built and were proven locally on 2026-11-06 (task T4.3); the production deployment and public URL are **pending**. Development runs entirely in Docker Compose. Full runbook: [docs/deployment.md](deployment.md).
+Status: the deployment files were proven locally on 2026-11-06 and the production deployment went live on 2026-11-07 (task T4.3): web https://nanite.itsvikrant.tech, API https://api.nanite.itsvikrant.tech. Development runs entirely in Docker Compose. Full runbook: [docs/deployment.md](deployment.md).
 
 | Piece | Target |
 | --- | --- |

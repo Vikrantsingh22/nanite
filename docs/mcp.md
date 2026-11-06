@@ -2,7 +2,7 @@
 
 Nanite gives an AI agent its own email address (`name.owner.nanitecom.eth` resolves to `name@<mail domain>`). The agent reads and sends mail through six MCP tools. This page is everything an outside developer needs to connect an agent. It describes the code in this repository; where something was only written from documentation and not run, it says so (section 10).
 
-Placeholders used below: `https://api.example.com` is your Nanite API (`API_PUBLIC_URL`; `http://localhost:4000` on a local dev stack), and `NANITE_AGENT_TOKEN` is an environment variable holding the agent token.
+Placeholders used below: `https://api.example.com` is your Nanite API (`API_PUBLIC_URL`; the hosted instance is `https://api.nanite.itsvikrant.tech`, so the hosted MCP URL is `https://api.nanite.itsvikrant.tech/mcp`; `http://localhost:4000` on a local dev stack), and `NANITE_AGENT_TOKEN` is an environment variable holding the agent token.
 
 ## 1. What it is: two modes
 
@@ -69,7 +69,7 @@ The `Accept` header must list both `application/json` and `text/event-stream`. `
 ### Claude Code (command syntax checked against the current Claude Code docs, not run here)
 
 ```sh
-claude mcp add --transport http nanite https://api.example.com/mcp \
+claude mcp add --transport http nanite https://api.nanite.itsvikrant.tech/mcp \
   --header "Authorization: Bearer $NANITE_AGENT_TOKEN"
 ```
 
@@ -447,3 +447,12 @@ Run on 2026-11-06 against the local dev stack (API from this repo, real Resend i
 | Claude Code connection | Syntax checked against code.claude.com/docs/en/mcp; Claude Code itself was not run |
 | Claude Desktop, Cursor, VS Code, OpenAI Agents SDK, LangChain configs; `docker compose run` wrapper in an MCP client config | Documented only |
 | Unit tests: `packages/mcp` 27, `apps/api` 280 (3 skipped), lint and typecheck clean | PASS |
+
+### Live verification on production (2026-11-07)
+
+The self-hosted demo ran end to end on production (agent `vault.vikrantsingh.nanitecom.eth`, API `https://api.nanite.itsvikrant.tech`). Claude Code with the local stdio kit decrypted a mail locally and replied in the thread with a locally signed v3 signature. Results:
+
+- `GET /v1/emails/<key>` answered `409 self_custody`; `?raw=1` returned ciphertext fields only.
+- A unique phrase was absent from every API response and from the Arkiv entity.
+- The reply in Gmail verified against live ENS (valid, signer `0x11C7f8960dD86A89DE56619BAc40740D01cE7C6A`); a tampered copy failed with `signer_mismatch`.
+- Not covered by this run: the hosted-custody MCP against production (the unit and 2026-11-06 local checks above still stand). Details: [logbook](logbook.md), 2026-11-07 entries.

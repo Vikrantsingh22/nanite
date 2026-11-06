@@ -35,7 +35,7 @@ Everything that writes to a chain or waits for mail is **prepared before going o
 
 1. **Name the demo agents after the story.** Create `support`, `sales` and `recruit` under your real username (for example `support.vikrantsingh.nanitecom.eth`). Set support to **reply-only** with a limit of **50**. Agent creation takes about a minute of Sepolia transactions, so never do it live.
 2. **Set up the 403 and the 200.** The 403 is a send to an address that never wrote to the agent. The 200 is a send to your Gmail, which must have sent support a **normal mail (not a login code) within the last 2 days**. Reply-only allows only senders whose mail is still in the agent's inbox, and login codes expire after 5 minutes. No allowlist write is needed: under reply-only the allowlist isn't read. Every real send, rehearsals included, counts toward the agent's limit of 50 and the shared quota of 90 mails a day (Resend free plan), so don't burn it in practice.
-3. **Have the support agent reply to a mail from your Gmail.** Copy its headers from "Show original" into `mail.json`, and keep a tampered copy (one changed character in the subject). Both checks are instant: `verify-mail-signature.ts` against live ENS. The same check already passed on a mail delivered to Gmail from our self-hosted agent: valid, and the tampered copy failed with `signer_mismatch` (logbook, 2026-11-06). **Run it on the hosted support agent's reply the day before**, so the on-stage "valid" is proven for that agent too.
+3. **Have the support agent reply to a mail from your Gmail.** Copy its headers from "Show original" into `mail.json`, and keep a tampered copy (one changed character in the subject). Both checks are instant: `verify-mail-signature.ts` against live ENS. The same check already passed on a mail delivered to Gmail from our self-hosted agent, locally (2026-11-06) and on production (2026-11-07, `vault.vikrantsingh.nanitecom.eth`): valid, and the tampered copy failed with `signer_mismatch` (logbook). The hosted support agent's reply is still unverified. **Run it on the hosted support agent's reply on production the day before**, so the on-stage "valid" is proven for that agent too.
 4. **One minute before going on, send the agent a login code from your phone**, so the OTP is visible and counting down.
 5. **Open the tabs:** the dashboard, the ENS records, the Gmail reply, a terminal with the two curl commands and the verifier, and the inbox.
 6. **Fallbacks:** a screen recording of the full run, and the Arkiv curl query output (`arkiv/query.curl.sh`) in case the explorer is slow.
@@ -50,7 +50,7 @@ Everything that writes to a chain or waits for mail is **prepared before going o
    - Its records: `nanite.send` reply-only, `nanite.send-limit` 50, `nanite.signer` 0x…
    - A mail with `X-Nanite-Agent` and `X-Nanite-Signature`, checked against ENS.
    - The mail stored as ciphertext on Arkiv, owner = your wallet.
-3. **The one idea + links:** *DKIM proves the domain. Nanite proves the agent.* Repo, ENS name, Arkiv query. Add the app URL once it is deployed (**next**).
+3. **The one idea + links:** *DKIM proves the domain. Nanite proves the agent.* Repo, ENS name, Arkiv query, and the live app: https://nanite.itsvikrant.tech (API: https://api.nanite.itsvikrant.tech).
 
 ## The story behind it (for Q&A and the booth)
 
@@ -126,7 +126,7 @@ AgentMail is more mature: SOC 2 on paid plans, a funded team, an onboarding API.
 | "What if I lose my keys?" | A recovery code is shown once at onboarding and must be confirmed; a passphrase is the fallback. |
 | "What if a signing key leaks?" | Rotate it in the agent's settings; mail signed with the old key stops verifying. |
 | "Deliverability?" | Real mail through Resend on our domain: DKIM, SPF and DMARC pass, and replies land in the Gmail inbox in the same thread (live, 2026-11-06). |
-| "Is it live?" | It runs end to end against Sepolia ENSv2, Arkiv Rabdi and real email today. The public URL comes with deployment (**next**). |
+| "Is it live?" | Yes. The web app is at https://nanite.itsvikrant.tech and the API at https://api.nanite.itsvikrant.tech (deployed 2026-11-07). It runs against Sepolia ENSv2, Arkiv Rabdi and real email. On production we ran a self-hosted agent end to end: local decrypt, a signed reply that verified in Gmail against ENS, and a tampered copy that failed. The hosted support agent's reply has not yet been verified on production. |
 | "Why not Postgres?" | Postgres would make us the owner and reader of every agent's mail. See `arkiv/why-arkiv.md`. |
 | "Testnet only?" | Sepolia and Rabdi today; the code is chain-config driven. |
 

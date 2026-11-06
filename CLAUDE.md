@@ -18,7 +18,7 @@ Read these first:
   - `apps/web`: Next.js 16.4.2 frontend (App Router, React 19.3.0, TypeScript 5.9.3 strict, Tailwind 4.3.3, shadcn/ui radix-nova, lucide). UI only; it calls the API at `NEXT_PUBLIC_API_BASE_URL`.
   - `apps/api`: Hono 4.13.13 on Node, a long-running service. It handles the Resend webhook, `/v1/*`, the Arkiv write queue and the retention timer.
   - `packages/db`: Drizzle schema, migrations and queries. `packages/crypto`: envelope encryption and key handling, shared by browser and server.
-- Hosting (decided 2026-11-06; deployment happens in T4.3): the frontend on Vercel; the API and Postgres 17.6 in Docker on an AWS Lightsail $12 instance behind Caddy; images from GHCR. Locally everything runs in Docker Compose. License MIT.
+- Hosting (decided 2026-11-06; live since 2026-11-07, T4.3 done): the frontend on Vercel; the API and Postgres 17.6 in Docker on an AWS Lightsail $12 instance behind Caddy; images from GHCR. Locally everything runs in Docker Compose. License MIT.
 - Layout: `apps/web` (app; `src/app/globals.css`, `components.json`, `src/components/ui`), `packages/` (shared; T1.2 adds `packages/crypto`), `scripts/`, `config/`, `contracts/`, `signer/`, `arkiv/`, `docs/`, `.design-refs/` (gitignored design guidance for the UI work).
 - All dependency versions are pinned exactly (no `^` or `~`); prefer releases at least 2 weeks old.
 

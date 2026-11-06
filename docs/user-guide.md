@@ -6,13 +6,13 @@ This guide walks through every screen in the order you meet it. Each numbered st
 
 **Where things run.** Steps marked **[local]** work on the local Docker stack (web `http://localhost:3000`, API `http://localhost:4000`). Steps marked **[deployed]** need the live URLs from `docs/deployment.md`:
 
-| | Local | Deployed (placeholders until T4.3 is finished) |
+| | Local | Deployed (live since 2026-11-07) |
 | --- | --- | --- |
 | Web app | `http://localhost:3000` | `https://nanite.itsvikrant.tech` |
 | API | `http://localhost:4000` | `https://api.nanite.itsvikrant.tech` |
 | Hosted MCP | `http://localhost:4000/mcp` | `https://api.nanite.itsvikrant.tech/mcp` |
 
-Everything below uses `$WEB` and `$API` for these. Real email (Gmail to an agent and back) only works on the deployed stack (or the tunnelled `nanite-api-live`), because Resend has to reach the API.
+Everything below uses `$WEB` and `$API` for these. Real email (Gmail to an agent and back) only works on the deployed stack (or a tunnelled local API), because Resend has to reach the API.
 
 Screenshots in `docs/guide-shots/` were taken at 1440 px with a mocked wallet and a fake API (see the validation section); the pages and the browser-side crypto are the real code.
 

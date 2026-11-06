@@ -249,3 +249,14 @@ docker save nanite-api:manual | gzip | ssh -i ~/.ssh/<key>.pem ubuntu@<STATIC_IP
 ### After deploy
 - Agents created later get `agent-endpoint[mcp] = https://api.nanite.itsvikrant.tech/mcp` automatically. For older test agents on Sepolia, run `update-agent-endpoints.ts --apply` with `API_PUBLIC_URL` set (optional; they live in the dev databases).
 - Record the URLs, static IP (not secret) and image tag in `docs/logbook.md`.
+
+## Actual deployment notes (2026-11-07)
+
+What bit us on the real deployment:
+
+- **Lightsail firewall.** The instance needed an explicit HTTPS 443 rule. Only 22 and 80 were open by default, so Caddy could not serve TLS until 443 was added.
+- **Cloudflare wildcard.** A wildcard record `*.itsvikrant.tech` shadowed the new names until specific records for `nanite` and `api.nanite` were added (the API record is DNS only, grey cloud, so Caddy can get its Let's Encrypt certificate).
+- **SSH.** Restrict port 22 to your own IP in the Lightsail firewall.
+- **Arkiv key.** Set `ARKIV_ACCESS_KEY` on the server with `read -rs` (so it never appears in history or on screen), then run `docker compose up -d --force-recreate api` so the container picks it up.
+- **Redeploy.** `./deploy.sh` (on the server, in `/opt/nanite`) pulls the latest image and redeploys the API.
+- **Smoke test that passed:** `/health`, TLS, CORS allowed only for the web origin, 401 without a token, HSTS.

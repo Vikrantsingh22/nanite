@@ -10,7 +10,7 @@ Claude Code --stdio--> docker compose run -i -T kit  [ /keys/agent-key.json (ro)
 
 ## 1. Prerequisites
 
-- Stack up (`docker compose up -d db api web`), webhook tunnel live and Resend pointed at it (steps in [../reddit/README.md](../reddit/README.md), section 3), real mail configured in the root `.env`, user `vikrantsingh` in the app, `claude` installed.
+- A user and mail domain on production (https://nanite.itsvikrant.tech; the Resend webhook already points at https://api.nanite.itsvikrant.tech, so no tunnel), `claude` installed. For a local dev stack instead, run `docker compose up -d db api web` and use the Cloudflare tunnel steps in [docs/resend-integration.md](../../docs/resend-integration.md).
 - `docker compose config -q` passes (it declares the `kit` and `kit-keygen` services, profile `kit`, and the volume `kit_keys`).
 
 ## 2. Generate the keys on "your machine"
@@ -25,7 +25,7 @@ This runs `nanite-mcp keygen --out /keys` in a container and writes `agent-key.j
 
 ## 3. Register the agent in the app
 
-1. http://localhost:3000, signed in as `vikrantsingh`. Add agent, name e.g. `vault`.
+1. https://nanite.itsvikrant.tech, signed in with your wallet. Add agent, name e.g. `vault`.
 2. Choose "Hold the key yourself (self-hosted)" and paste the encryption public key and the signer address. Create.
 3. Wait until the agent is ready; the create job publishes the signer address as ENS record `nanite.signer`. Note the mailbox (`vault.vikrantsingh@nanitecom.itsvikrant.tech`) and the ENS name.
 4. Send policy: the agent can only reply to allowed recipients (default is reply-only, which is what this demo needs: it answers someone who wrote to it). Mail lifetime is 2 days by default.

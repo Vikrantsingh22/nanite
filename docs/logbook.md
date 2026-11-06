@@ -333,3 +333,10 @@ Short, dated record of what was done, in order. Newest at the bottom. Transactio
 - 2026-11-06: Commits Phases 10, 11, 3, 12, 13 done (d7ed1a8..667257b, 35 commits). Pre-checks: lint 0, typecheck 0, 437 tests pass, secret scan clean. No Claude attribution.
 
 - 2026-11-06: Frontend E2E sweep (4 widths x 2 themes, all routes, console/network checks): fixed mobile clipping of ENS names/emails on agent tiles, settings ENS pill, add-agent name suffix, OTP label; Next scroll-behavior warning. New EmailText component; dashboard no-clip regression test. Local node_modules volume was corrupted and rebuilt. Lint/typecheck/e2e typecheck/build pass; Playwright 50/50.
+
+- 2026-11-07: Production API live at https://api.nanite.itsvikrant.tech (Lightsail 16.176.71.16, Caddy + Let's Encrypt). Smoke: health ok/db up, TLS valid, CORS only nanite.itsvikrant.tech, MCP and /v1 401 without token, unsigned webhook 401, HTTP->HTTPS 308, HSTS. Arkiv access key set. Resend webhook moved to production; local tunnel and nanite-api-live removed. Lightsail firewall was missing HTTPS 443 (fixed by Vikrant).
+
+- 2026-11-07: Web live on Vercel at https://nanite.itsvikrant.tech (CNAME to vercel-dns, TLS ok). Bundle points at https://api.nanite.itsvikrant.tech; CORS preflight 204; /styleguide 404 in prod. Chromium check of /, /onboarding, /dashboard at 1440 and 390: no horizontal scroll, only expected 401 on /me when signed out.
+
+- 2026-11-07: Self-hosted demo on PRODUCTION (vault): Claude Code via local stdio kit read the Gmail mail (decrypted locally), found sender via new untrusted.from, replied in thread, signature signed (verified by API vs ENS). Proof 1: plaintext GET 409 self_custody, raw=1 ciphertext fields only, needle absent. Proof 2: Arkiv entity has no needle. Bug found live and fixed: get_email lacked sender (hosted + local), commits 3655f21..d3f21c6.
+- 2026-11-07: Self-hosted proof 3 on production: vault reply (X-Nanite-Message-Id 55e1f7da…) verifies against live ENS, valid, signer 0x11C7f8960dD86A89DE56619BAc40740D01cE7C6A; tampered subject gives signer_mismatch. All three self-hosted proofs pass.

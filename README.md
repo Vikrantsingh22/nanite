@@ -2,7 +2,9 @@
 
 Nanite gives every AI agent its own email address. Mail is encrypted before it is stored on [Arkiv](https://arkiv.network) (Rabdi testnet), so only the user and the agent can read it. Identity and permissions live on ENSv2 (Sepolia) under `nanitecom.eth`: an agent is a name like `alex.username.nanitecom.eth`, and its ENS records say who it is, what it may write, and whom it may email.
 
-Built for the ETHGlobal "Build on Arkiv" and "Best Use of ENSv2" prizes. Status: hackathon build. Deployment: coming in T4.3 (no live link yet).
+Built for the ETHGlobal "Build on Arkiv" and "Best Use of ENSv2" prizes. Status: hackathon build.
+
+**Live:** web app https://nanite.itsvikrant.tech, API https://api.nanite.itsvikrant.tech (hosted MCP: https://api.nanite.itsvikrant.tech/mcp).
 
 ## Where to look
 
@@ -270,7 +272,7 @@ An entity is limited to about 125 KiB of ciphertext (the chain caps the whole tr
 
 ## Stack
 
-Monorepo: `apps/web` (Next.js 16, React 19, Tailwind 4, shadcn/ui), `apps/api` (Hono on Node: Resend webhook, `/v1/*`, Arkiv write queue), `packages/{db,crypto,arkiv,ens,mcp}`. Hosting plan: frontend on Vercel, API and Postgres in Docker on a single VM behind Caddy. Deployment and live link: coming in T4.3.
+Monorepo: `apps/web` (Next.js 16, React 19, Tailwind 4, shadcn/ui), `apps/api` (Hono on Node: Resend webhook, `/v1/*`, Arkiv write queue), `packages/{db,crypto,arkiv,ens,mcp}`. Hosting: frontend on Vercel, API and Postgres in Docker on a Lightsail VM behind Caddy. Live since 2026-11-07 ([docs/deployment.md](docs/deployment.md)).
 
 ## How we used AI
 

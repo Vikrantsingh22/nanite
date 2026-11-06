@@ -25,15 +25,17 @@ Whether users prefer wallet-owned, encrypted mail over a hosted inbox is what a 
 
 ## Try it today
 
-The live URL is not deployed yet. The planned address is `https://nanite.itsvikrant.tech`; deployment is task T4.3 ([docs/deployment.md](../docs/deployment.md)). Until then:
+Nanite is live. The web app is at https://nanite.itsvikrant.tech. The API is at https://api.nanite.itsvikrant.tech, and the hosted MCP is at https://api.nanite.itsvikrant.tech/mcp. Setup notes are in [docs/deployment.md](../docs/deployment.md).
+
+Evidence from production, 2026-11-07: a self-hosted agent (`vault.vikrantsingh.nanitecom.eth`) read a mail and replied from a local machine. The server could not read the mail: plaintext was refused with 409 `self_custody`, and the test phrase was not in any API response or in the Arkiv entity. The reply in Gmail verified against live ENS. A tampered copy failed. We have not measured demand. Other ways to try it:
 
 1. **One curl, nothing to install.** [query.curl.sh](query.curl.sh) lists real Nanite entities from the public Arkiv RPC. No wallet, SDK or key. It is plain POSIX `sh` and needs `curl` and `jq`:
    ```
    sh arkiv/query.curl.sh
    ```
    On 2026-11-06 it returned 16 entities at block 285,197. [schema.md](schema.md) explains every field.
-2. **The full product, locally in Docker.** Follow the root [README](../README.md), then run `docker compose up -d db api web`. The web app opens at http://localhost:3000. A seed script creates a demo user with two agents and invented mail ([LIVE-E2E.md](../apps/api/LIVE-E2E.md), "Demo seed").
-3. **Connect an agent through MCP.** `packages/mcp` has six tools: `list_inbox`, `get_email`, `get_latest_otp`, `wait_for_email`, `send_email`, `extend_email`. It runs hosted (`/mcp` on the API) or locally over stdio. On 2026-11-06 we tested both modes against our local stack. A few paths have only unit tests ([docs/mcp.md](../docs/mcp.md), section 10). `nanite-mcp` is not on npm yet, so run it from a checkout.
+2. **The full product, locally in Docker** (or just use the live app above). Follow the root [README](../README.md), then run `docker compose up -d db api web`. The web app opens at http://localhost:3000. A seed script creates a demo user with two agents and invented mail ([LIVE-E2E.md](../apps/api/LIVE-E2E.md), "Demo seed").
+3. **Connect an agent through MCP.** `packages/mcp` has six tools: `list_inbox`, `get_email`, `get_latest_otp`, `wait_for_email`, `send_email`, `extend_email`. It runs hosted (`/mcp` on the live API) or locally over stdio. On 2026-11-06 we tested both modes against our local stack. A few paths have only unit tests ([docs/mcp.md](../docs/mcp.md), section 10). `nanite-mcp` is not on npm yet, so run it from a checkout.
 4. **Run a full agent demo.** [demo/](../demo/README.md) has two Claude Code kits: an agent that signs up for Reddit and reads its own verification code, and a self-hosted agent that decrypts and signs on its own machine.
 5. **Read how it all works.** [docs/how-it-works.md](../docs/how-it-works.md); section 12 covers Arkiv.
 
