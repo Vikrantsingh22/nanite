@@ -129,7 +129,7 @@ Agent tokens are issued by the add-agent flow (`POST /agents`); the token is sho
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /v1/inbox?type=&before=&after=&limit=&cursor=` | List this agent's mail (metadata: `entityKey`, `type`, `receivedAt`, `threadId`, `expiresAtBlock`). `type` is a comma list of `otp`, `conversation`, `sent`; `limit` 1 to 100 |
-| `GET /v1/emails/:entityKey` | One email, decrypted (`untrusted.subject`, `untrusted.body`, `otp`, `links`). `?raw=1` returns ciphertext, wrapped keys and nonce for self-custody agents |
+| `GET /v1/emails/:entityKey` | One email, decrypted (`untrusted.from` or, for sent copies, `untrusted.to`, `untrusted.subject`, `untrusted.body`, `otp`, `links`). `?raw=1` returns ciphertext, wrapped keys and nonce for self-custody agents |
 | `GET /v1/otp/latest` | Latest OTP: `{otp, receivedAt, expiresAtBlock, entityKey}` or 404 |
 | `GET /v1/emails/wait?since=&timeout=&type=` | Long-poll (timeout up to 30 s) for the next mail after `since` (unix seconds); `204` on timeout |
 | `POST /v1/emails/send` | Send mail as the agent, if its ENS policy allows |

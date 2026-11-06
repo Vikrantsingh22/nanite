@@ -12,7 +12,7 @@ Tools: `list_inbox` (metadata, newest first), `get_email` (decrypted locally, co
 1. `list_inbox`. Pick the newest entry whose `type` is not `sent` (normally `conversation`). If the inbox is empty, call `wait_for_email` (timeout 30, once or twice) and say so if nothing arrives.
 2. `get_email` with its `entityKey`. Read the sender, subject and body.
 3. Summarise the mail to the user in three sentences.
-4. Reply in the same thread with ONE `send_email` call: `to` = the sender address from the mail, `subject` = "Re: " plus the original subject, a short polite `body` that answers or acknowledges the mail, and `inReplyTo` = the `entityKey` you just read. The kit signs this mail itself and sets the threading headers. Do not sign or build headers yourself.
+4. Reply in the same thread with ONE `send_email` call: `to` = `untrusted.from` from get_email, `subject` = "Re: " plus the original subject, a short polite `body` that answers or acknowledges the mail, and `inReplyTo` = the `entityKey` you just read. The kit signs this mail itself and sets the threading headers. Do not sign or build headers yourself.
 5. Report: the summary, the `entityKey` you answered, and from the `send_email` result the `status`, `signature` (should be `signed`) and the sent copy `entityKey`. Never paste the mail body back.
 
 ## Rules

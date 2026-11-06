@@ -29,13 +29,15 @@ This runs `nanite-mcp keygen --out /keys` in a container and writes `agent-key.j
 2. Choose "Hold the key yourself (self-hosted)" and paste the encryption public key and the signer address. Create.
 3. Wait until the agent is ready; the create job publishes the signer address as ENS record `nanite.signer`. Note the mailbox (`vault.vikrantsingh@nanitecom.itsvikrant.tech`) and the ENS name.
 4. Send policy: the agent can only reply to allowed recipients (default is reply-only, which is what this demo needs: it answers someone who wrote to it). Mail lifetime is 2 days by default.
-5. Copy the agent token (agent settings). Put it in the demo-only env file (never in chat, never the repo-root `.env`):
+5. Copy the agent token (agent settings). Put it in the demo-only env file `demo/.env` (never in chat, never the repo-root `.env`). Type the token into a hidden prompt instead of copying a command from chat (that can overwrite the clipboard):
 
 ```
 cd demo
-printf 'NANITE_SELF_AGENT_TOKEN=' > .env && chmod 600 .env     # then paste the token after the = in an editor
-# optional, only if the agent lives on another API: KIT_API_URL=http://api:4000 (default, the dev API on the Docker network)
+read -rs "T?vault token: "; echo
+printf 'NANITE_SELF_AGENT_TOKEN=%s\nKIT_API_URL=https://api.nanite.itsvikrant.tech\n' "$T" > .env && chmod 600 .env; unset T
 ```
+
+`KIT_API_URL` is where the agent lives. Production `https://api.nanite.itsvikrant.tech` is the example above; for the local dev stack use `KIT_API_URL=http://api:4000` instead.
 
 ## 4. Send it a mail from Gmail
 
@@ -44,17 +46,21 @@ From your Gmail address to `vault.vikrantsingh@nanitecom.itsvikrant.tech`, any s
 ## 5. Run Claude Code
 
 ```
-cd demo
-set -a; . ./.env; set +a
-cd self-hosted
-claude mcp list          # nanite: docker compose -f ../../docker-compose.yml run --rm -i -T kit ... Connected
+cd demo/self-hosted
+claude mcp list          # nanite: docker compose --env-file ../.env ... Connected
 claude
 ```
 
-Approve the project server from `.mcp.json` on first start. The `.mcp.json` launches the kit like this:
+Approve the project server from `.mcp.json` on first start. If Claude Code does not list it, register it yourself:
 
 ```
-docker compose -f ../../docker-compose.yml run --rm -i -T kit
+claude mcp add nanite --scope local -- docker compose --env-file ../.env -f ../../docker-compose.yml run --rm -i -T kit
+```
+
+The `.mcp.json` launches the kit like this (`--env-file ../.env` loads `demo/.env`, so no `set -a` is needed):
+
+```
+docker compose --env-file ../.env -f ../../docker-compose.yml run --rm -i -T kit
   kit = node:22, repo mounted, key volume mounted READ-ONLY at /keys, NANITE_AGENT_KEY_FILE=/keys/agent-key.json,
         NANITE_API_URL=${KIT_API_URL:-http://api:4000}, NANITE_AGENT_TOKEN=${NANITE_SELF_AGENT_TOKEN}
 ```
@@ -63,7 +69,7 @@ docker compose -f ../../docker-compose.yml run --rm -i -T kit
 
 > Read my latest email, summarise it in three sentences, then reply in the same thread with a short, polite answer.
 
-Claude calls `list_inbox`, `get_email` (decrypted inside the container), then `send_email` with `inReplyTo`; the kit signs the mail and the API verifies the signature against ENS before sending. Gmail shows the reply threaded under your mail. Write down the `entityKey` Claude reports for the mail it read (or take it from `list_inbox`).
+Claude calls `list_inbox`, `get_email` (decrypted inside the container; the sender is `untrusted.from`), then `send_email` with `inReplyTo`; the kit signs the mail and the API verifies the signature against ENS before sending. Gmail shows the reply threaded under your mail. Write down the `entityKey` Claude reports for the mail it read (or take it from `list_inbox`).
 
 ## 6. Prove it
 
@@ -73,13 +79,13 @@ Run these from the repo root. `NEEDLE` is your distinctive phrase from step 4.
 
 ```
 set -a; . demo/.env; set +a
-docker compose run --rm -e NANITE_AGENT_TOKEN="$NANITE_SELF_AGENT_TOKEN" tools \
+docker compose run --rm -e NANITE_AGENT_TOKEN="$NANITE_SELF_AGENT_TOKEN" -e API_URL=https://api.nanite.itsvikrant.tech tools \
   npx tsx demo/scripts/prove-self-custody.ts <entityKey> --needle="pomegranate-7421"
 ```
 
 Expected: `GET /v1/emails/<key>` answers `409 self_custody`; `?raw=1` returns only `entityKey, type, receivedAt, threadId, expiresAtBlock, agentKeyId, keyIds, ciphertext, wrappedKeys, nonce, content_trust`; the needle is found nowhere in the API responses nor in the raw Arkiv entity (a direct `arkiv_query` selecting every stored attribute); the explorer link shows the same encrypted attributes. A mail the kit reads, by contrast, contains the needle: ask Claude to `get_email` it and search.
 
-By hand, the 409 alone: `docker compose run --rm tools curl -s -H "Authorization: Bearer $NANITE_SELF_AGENT_TOKEN" http://api:4000/v1/emails/<entityKey>` (after `set -a; . demo/.env; set +a`).
+By hand, the 409 alone: `docker compose run --rm tools curl -s -H "Authorization: Bearer $NANITE_SELF_AGENT_TOKEN" https://api.nanite.itsvikrant.tech/v1/emails/<entityKey>` (local stack: `http://api:4000`) (after `set -a; . demo/.env; set +a`).
 
 Also: `curl` to the hosted MCP with this token answers `403 self_custody` (no decryption on the server, by design).
 
