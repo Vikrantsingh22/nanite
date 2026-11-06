@@ -106,8 +106,23 @@ Last updated: Nov 5, 2026. Owner: Vikrant. Read this first in every new conversa
   - **Reads:** the browser reads Arkiv directly and decrypts locally (sealed box, then AEAD); agents decrypt with their own key.
   - **Crypto:** `libsodium-wrappers` shared by browser and server.
   - **Required protections:** render email HTML in a sandboxed iframe, sanitized, with remote images blocked by default; strict CSP and no third-party scripts; SRI. State the "served JS is trusted" limit honestly in the docs.
+- ENS roles (confirmed by Vikrant, Nov 6, 2026, after T2.1):
+  - **User's name** (in the nanitecom registry): the user gets D3 (SET_RESOLVER and SET_SUBREGISTRY with their admins, plus CAN_TRANSFER_ADMIN) **plus RENEW**, so users can keep their name alive without Nanite. The operator keeps its root RENEW for auto-renewal.
+  - **User's own registry:** the user holds ALL_ROLES. The operator holds REGISTRAR | RENEW | SET_PARENT | UNREGISTER (no admin roles), so the dashboard can link the registry and delete agent names without a user signature; the user can revoke any of these.
+  - **Agent names:** owned by the user. Each agent's own resolver grants the operator and the user SET_TEXT | SET_ADDRESS with their admins; nobody gets UPGRADE. The agent wallet may write only `agent-context`.
 - Outbound email (added Nov 5, 2026): agents can send to anyone, permitted per agent by ENS text records (`nanite.send`, `nanite.send-allow`, `nanite.send-limit`) on the agent's own resolver. Only the user and operator can set them; the agent cannot. Nanite resolves them fresh before every send. Default `reply-only`. Sent copies go to Arkiv as `type = "sent"`. Tasks: T2.2 (records) and T3.5 (send API).
-- Runtime: Docker for everything (decided Nov 5, 2026). T0.2 should set up Docker Compose so `docker compose up` runs the app, API and Postgres.
+- Hosting (revised Nov 6, 2026; supersedes the Vercel-for-everything decision of Nov 5):
+  - **Frontend:** Next.js `apps/web` on **Vercel**. It holds only public config (API base URL, chain IDs, contract addresses); no server secrets go to Vercel.
+  - **Backend:** a long-running **API service** (`apps/api`, Node + Hono) plus **Postgres 17.6**, both in Docker Compose on an **AWS Lightsail $12 instance** (2 GB RAM, 60 GB SSD; paid from the $100 AWS credits). Caddy terminates HTTPS on `api.<domain>` via a free Lightsail static IP.
+  - **What the API owns:** the Resend webhook, `/v1/*`, the Arkiv single-flight write queue (in process) and the retention timer.
+  - **Images and backups:** images build in GitHub Actions and push to GHCR; the VM only pulls. Backups are nightly `pg_dump` plus Lightsail snapshots. Server secrets (operator key, master key, Resend key, sender-hash secret) live only in the VM's env.
+  - **Browser to API:** either a Vercel rewrite of `/api/*` to `https://api.<domain>` (no CORS) or CORS restricted to the Vercel domain. Decide in T0.5.
+  - **Why:** production matches the local Docker stack, there are no serverless timeouts, and the credits cover about 8 months. Check the vCPU count and credit expiry in the AWS console.
+  - **Rejected:** Cloudflare Workers free (10 ms CPU per request) and Neon (Postgres stays on the VM).
+  - **Still to decide:** the domain/subdomain plan (Vercel app, `api.` to Lightsail, Resend MX for mail).
+- License: MIT (Vikrant Singh, 2026).
+- Design: the "Secure terminal" visual direction (dark, precise, monospace accents, hairline grids, signal-green or amber highlights) on shadcn/ui and Tailwind v4. Design guidance comes from taste-skill, Anthropic's frontend-design skill and the shadcn skill (downloaded to the gitignored `.design-refs/`). Playwright (in Docker) does visual and frontend validation.
+- Runtime: Docker for everything (decided Nov 5, 2026). Nothing project-related runs on the host Mac, including checks, downloads and Playwright. T0.2 should set up Docker Compose so `docker compose up` runs the app, API and Postgres.
 
 ## Still open (each is covered by a task)
 
@@ -115,6 +130,15 @@ Last updated: Nov 5, 2026. Owner: Vikrant. Read this first in every new conversa
 - Plaintext metadata on Arkiv (`agentId` as an ENS name, `receivedAt`, `threadId`, a global `senderHash`) is linkable by anyone. T0.3 proposes a per-user HMAC key for `senderHash` and opaque IDs in production, keeping ENS names for the demo. Decide in T1.4.
 - Role set for real users on their `username.nanitecom.eth` (T0.4 used D3 = SET_RESOLVER | SET_SUBREGISTRY + admins + CAN_TRANSFER_ADMIN), and whether users also get `ROLE_RENEW` so their names survive without Nanite. Task T2.1.
 - Closed in T0.4: the owner holds `ROLE_SET_SUBREGISTRY` (yes); the operator can call `register()` directly (yes); exact ABIs are saved in `contracts/abi/`.
-- Tech stack, repo layout and hosting for the live demo link. Task T0.2.
 - Whether Swarm is worth the $500 bonus; decide after Phase 3.
 - Resend: the real domain (the demo address), whether a subdomain uses a domain slot (check with `resend usage`).
+
+## Decisions 2026-11-06 (Vikrant)
+- Inbound HTML: text only for now. The pipeline stores the text part (or HTML stripped to text); the HTML part isn't stored. The sandboxed iframe stays in the UI for later.
+- Demo database: keep the live/demo data in the separate `nanite_live` database; the deployed API (T4.3) gets a clean database.
+- Threading: outbound replies set `In-Reply-To`/`References` from the encrypted `meta.messageId`/`meta.references` of the email being answered.
+- Send-log allowlist snapshot: keep counts + hash (no addresses in Postgres).
+- Mail quota: one Nanite-wide cap of 90 mails/day (sent + received, all agents; Resend free tier is 100/day), configurable as `DAILY_MAIL_QUOTA`. Over the cap, outbound is refused; inbound is still stored. The per-agent ENS `nanite.send-limit` still applies. Both checks are atomic.
+- Outbound signing: option B (Vikrant, 2026-11-06). A server-generated per-agent signer key, sealed under NANITE_MASTER_KEY, address published as ENS text `nanite.signer`; the derived wallet stays the identity and its key never leaves the browser. One migration (nullable signer columns) approved with B.
+- Custom domain in onboarding (Vikrant, 2026-11-06): every user must add their own mail domain during onboarding. Nanite creates it in Resend through the API (sending + receiving, tracking off), shows the DNS records with provider tips, checks public DNS per record, triggers Resend verify and polls with backoff (plus the `domain.updated` webhook event); the step is resumable. New agents get `<agent>@<user domain>`. One migration adds the `user_domains` table (approved). Constraint: Resend free plan = 3 domains (1 used by nanitecom.itsvikrant.tech), so real users need Resend Pro; tests use the fake Resend.
+- REVISED (Vikrant, 2026-11-06, replaces "custom domain REQUIRED"): the domain is OPTIONAL. No user is forced through the domain setup. The onboarding domain step offers a choice: "Use your own domain" (recommended; DNS can take up to 72 hours to reach the internet) or the faster route: start now with `<agent>.<user>@nanitecom.itsvikrant.tech`, zero setup. Users can add their own domain later from Settings. Onboarding completes without a verified domain; agents use the user's domain only once it is verified, otherwise the shared domain. The Resend 3-domain free limit only affects users who opt in.

@@ -11,22 +11,24 @@ Update this table at the end of every task (Todo / In progress / Done / Cut).
 | ID | Task | Box | Status |
 | --- | --- | --- | --- |
 | T0.1 | Wallets and Sepolia name | 0.5h | Done |
-| T0.2 | Repo scaffold, stack, hosting | 2h | Partly done (Docker skeleton, CLAUDE.md, .gitignore, .env.example, arkiv/ stubs made in T0.4; Next.js app, API, Postgres, lint/CI, hosting left) |
+| T0.2 | Repo scaffold, stack, hosting | 2h | Done (public GitHub repo and push still to do) |
 | T0.3 | Arkiv spike | 2h | Done |
 | T0.4 | ENS spike on Sepolia | 3h | Done |
-| T1.1 | Postgres schema and migrations | 1.5h | Todo |
-| T1.2 | Crypto library | 3h | Todo |
-| T1.3 | Inbound pipeline: Resend to Arkiv | 4h | Todo |
-| T1.4 | Arkiv schema and query layer | 2h | Todo |
-| T2.1 | ENS service module | 3h | Todo |
-| T2.2 | Agent records and revoke | 2h | Todo |
-| T3.1 | Sign-in, key setup, onboarding | 4h | Todo |
-| T3.2 | Add-agent flow | 2h | Todo |
-| T3.3 | Dashboard and inbox | 3h | Todo |
-| T3.4 | Agent API, tokens, MCP | 3h | Todo |
-| T3.5 | Outbound send, gated by ENS policy | 2.5h | Todo |
-| T4.1 | OTP expiry and demo data | 1.5h | Todo |
-| T4.2 | Arkiv docs and README | 2h | Todo |
+| T0.5 | API service scaffold (`apps/api`) | 0.5h | Done |
+| T1.1 | Postgres schema and migrations | 1.5h | Done |
+| T1.2 | Crypto library | 3h | Done |
+| T1.3 | Inbound pipeline: Resend to Arkiv | 4h | Done (proven with signed fake events + real Arkiv writes; a real Resend email waits on Vikrant's domain + API key) |
+| T1.4 | Arkiv schema and query layer | 2h | Done |
+| T2.1 | ENS service module | 3h | Done |
+| T2.2 | Agent records and revoke | 2h | Done |
+| T3.1 | Sign-in, key setup, onboarding | 4h | Done (mocked wallet; real wallet + Sepolia claim untested) |
+| T3.2 | Add-agent flow | 2h | Done (live E2E passed) |
+| T3.3 | Dashboard and inbox | 3h | Done (live E2E passed; inbound HTML not stored yet) |
+| T3.4 | Agent API, tokens, MCP | 3h | Done |
+| T3.5 | Outbound send, gated by ENS policy | 2.5h | Done (signing B + threading + quota; dashboard toggle done) |
+| T3.6 | Custom domain onboarding (enter domain → DNS records → auto verify) | 3h | Done (optional; fakes; live user-domain test pending) |
+| T4.1 | OTP expiry and demo data | 1.5h | Done (live: OTP gone at its expiry block; seed-demo.ts) |
+| T4.2 | Arkiv docs and README | 2h | Mostly done (AI-use note + web claims to confirm after T3.3) |
 | T4.3 | Deploy and live link | 1.5h | Todo |
 | T4.4 | Video, QA, submission | 2h | Todo |
 | S1 | Stretch: Swarm for attachments | 3h | Only if time remains |
@@ -41,6 +43,8 @@ Update this table at the end of every task (Todo / In progress / Done / Cut).
 | T0.2 | Repo ready for fast work | Public repo with open-source license, `README` stub, `CLAUDE.md` (links to these project docs, security rules, commands), monorepo layout, stack chosen (suggest TypeScript, Next.js app, Node API, Postgres, viem, `@arkiv-network/sdk`), Docker Compose setup for every service (app, API, Postgres), `.env.example`, `arkiv/` folder with empty `schema.md`, `friction.md`, `reach.md`, `why-arkiv.md`, `how-you-use-arkiv.md`; hosting target chosen | `docker compose up` starts the stack; CI or a lint step passes (run in Docker); the stack and hosting choice is written in `CLAUDE.md` |
 | T0.3 | Know how Arkiv really behaves | Script that writes and reads one entity on the Arkiv testnet; findings on payload size limit, expiry, query syntax, and whether another key can write on a user's behalf (delegation); a decision on who writes entities (operator, user wallet or derived writer key) | Findings recorded in `arkiv/friction.md` and `claude/nanite-status-and-decisions.md`; the writer-wallet decision is made |
 | T0.4 | Know how ENSv2 really behaves | Script or browser-signed transactions on Sepolia that: deploy a UserRegistry for `nanitecom.eth` via the factory, call `setSubregistry` on the `.eth` registry, grant the operator `ROLE_REGISTRAR \| ROLE_RENEW`, have the operator register one test name, deploy one resolver proxy with a text record and a key-scoped setter role for a test agent wallet | Every call works or the failure is documented with the fallback chosen; confirmed ABIs saved to `contracts/abi/`; addresses saved to config; open ENS items in the status file are closed |
+| T0.5 | Backend service for local development | `apps/api` (Node + Hono, pinned) in the workspaces with `/health` (DB check via `packages/db`); an `api` service in docker-compose (127.0.0.1:4000); `apps/web` reads `NEXT_PUBLIC_API_BASE_URL`, and the Next `/api/health` route moves to the API; CORS limited to the web origin locally | `docker compose up` runs web + api + db and the web app reaches the API; lint, typecheck and e2e stay green |
+
 
 T0.4 notes: owner steps are signed in the browser wallet (the owner key never goes into a script). Read the real ABIs from Sepolia Etherscan or the Explorer for `ETHRegistry`, `UserRegistryImpl`, `PermissionedResolverImpl` and `VerifiableFactory`. If the operator cannot call `register()` directly, record it and use the next best role design. Fallback if registries do not work in time: subnames as plain resolver records.
 
@@ -76,7 +80,7 @@ T0.4 notes: owner steps are signed in the browser wallet (the owner key never go
 | --- | --- | --- | --- |
 | T4.1 | OTP expiry and demo data | OTP entities with a short expiry that disappear from queries; seed script for the demo user and agents | Sending an OTP shows it, then it is gone after expiry without manual cleanup |
 | T4.2 | Arkiv docs and README | `arkiv/schema.md`, `friction.md`, `reach.md`, `why-arkiv.md`, `how-you-use-arkiv.md` answered with links, numbers or a runnable query; README with writer wallet addresses, one runnable query, setup steps, license, and an AI-use note | Every judged criterion has a file with concrete evidence; README query works from a clean checkout |
-| T4.3 | Deploy and live link | Hosted app, API, database and webhook; domain MX and Resend verified; env vars set; the live demo link in the README | The demo script runs end to end on the live link, from a phone email to a decrypted inbox |
+| T4.3 | Deploy and live link | Production build files first: a multi-stage `api` Dockerfile, `docker-compose.prod.yml` (api, db with nightly `pg_dump`, caddy for `api.<domain>`), a GitHub Actions job pushing the image to GHCR, and the Vercel rewrite or CORS decision. Then: frontend on Vercel; API, Postgres and Caddy on the Lightsail $12 instance (static IP, firewall: only 80/443 and SSH from Vikrant's IP), pulled from GHCR; DNS for the app, `api.` and the Resend MX; the Resend webhook pointed at `https://api.<domain>`; server secrets only in the VM env; backups (nightly `pg_dump` and a Lightsail snapshot) enabled; the live demo link in the README | The demo script runs end to end on the live link, from a phone email to a decrypted inbox |
 | T4.4 | Video, QA, submission | Backup demo video; full run of the demo script; submission text; checklist: public repo, license, live link, writer wallets, no keys in git | Submission is ready to send; a fresh clone builds |
 
 ## Cut order (if time runs short)
@@ -165,3 +169,52 @@ Paste this into the new Claude Code conversation:
     - Fix the quoted `addr('0x..')` comment in `docs/arkiv-spike/query.curl.sh`.
   - **Funds:** the funder keeps about 1 tGLM, and each worker wallet has about 1.4 tGLM left.
 - **Friction:** merged into `arkiv/friction.md` (Arkiv section: 5 big items, 11 smaller ones, and what worked well).
+
+### T0.2 (repo scaffold, stack, hosting), 2026-11-05 to 06
+
+- **Outcome:** Done, apart from creating the public GitHub repo and pushing. Run as A1 (foundation), then A2 (design system) and A3 (Playwright) in parallel, plus one review round; the orchestrator re-verified everything in Docker.
+- **What works:**
+  - **Stack:** npm workspaces; `apps/web` on Next 16.4.2, React 19.3, Tailwind 4.3.3 and shadcn 4.22.1; Postgres 17.6 in compose; `/api/health` checks the database.
+  - **Design system:** "Secure terminal" (Host Grotesk + Martian Mono, OKLCH tokens in dark and light), 35 shadcn components, 10 Nanite pattern components in `apps/web/src/components/nanite/`, the `/styleguide` style book and the home page.
+  - **Playwright:** `e2e/` runs in Docker (profile `e2e`): screenshots at 4 widths, axe, console and overflow, focus, scroll and anchor checks. 18 of 18 pass, confirmed in two clean runs. The agent CLI runs via `e2e/bin/pw-cli.sh`.
+  - **CI:** lint, typecheck, build and e2e typecheck. Also LICENSE (MIT), the README stub and CLAUDE.md commands.
+  - **Run it:** `docker compose up -d db web`, then http://localhost:3000 and `/styleguide`; `docker compose --profile e2e run --rm e2e npx playwright test`.
+- **Decisions:**
+  - Vercel for frontend and backend + Neon Postgres.
+  - MIT license.
+  - The "Secure terminal" design.
+  - Nothing runs on the host (all in the status file).
+- **Deviations:**
+  - **Version exceptions:** Next is 16.4.2, not the newest 16.4.5 (the two-week rule); TypeScript stays on 5.9.3 rather than the new 7.x major.
+  - **Rule breaches:** three subagents and the orchestrator edited files with host `python3`/`printf` before the rule was made explicit. Prompts now require editor tools only.
+  - **Possible flake:** one axe run failed while `next build` ran next to the dev server; it didn't recur in two clean runs.
+- **For the next tasks:**
+  - **Workflow:**
+    - Run `next build` only when the dev server is stopped, or in CI.
+    - The dev server needs `allowedDevOrigins: ["web"]` for Playwright, and it's set.
+    - The command palette demo mounts on demand, because cmdk auto-scrolls on mount.
+  - **T1.2:** add `packages/crypto` to the workspaces.
+  - **T3.x:** reuse `components/nanite/*` for the real screens.
+  - **T4.3:** create the Vercel project, connect Neon, set env vars, and check the Hobby cron limits.
+  - **Explorer path:** the Arkiv explorer entity path (`/entity/<key>`) is unverified; there's a TODO in `arkiv-entity-chip`.
+- **Commits:** Phase 4 in `claude/commit-plan.md` (14 commits, after Phases 2 and 3).
+
+### T3.6 (custom domain onboarding), 2026-11-06, Q1
+
+- **Outcome:** Built and tested against fakes (fake Resend admin, fake DNS); the real Resend API was never called. Needs review plus a live check by the orchestrator.
+- **Revision (Vikrant, same day): the domain is OPTIONAL.** Step 04 is a choice: "Use your own domain" (recommended, with the 72 h DNS note) or "Start now with the shared domain" (zero setup, shows the user's example address `<agent>.<user>@SHARED_MAIL_DOMAIN`, taken from `sharedMailDomain` in `/onboarding/status`). With an own domain the user can press "Continue for now" at any time; verification keeps running in the background. `POST /onboarding/complete` no longer needs a verified domain; `POST /agents` uses `<agent>@<domain>` only while the domain is verified, otherwise the shared address, never a 409. Existing agents keep their address when a domain verifies later (no migration of old agents). The dashboard has a "Mail domain" card (`components/dashboard/mail-domain-card.tsx`) that reuses `DomainStep` (`variant="settings"`, no choice screen) so a user who skipped can add a domain later and see a pending one. The `domain_not_verified` error no longer exists.
+- **Flake fixes:** (1) `resend-integration` crash-recovery: the startup sweep compared `updated_at < now` against the JS clock, which misses rows written in the same millisecond or by a DB clock a hair ahead; at startup the sweep now has no age condition at all (a fresh process has nothing in flight). (2) e2e `watchProblems` ignores only `net::ERR_ABORTED` on a `?_rsc=` request (an aborted Next RSC prefetch).
+- **What works:**
+  - Wizard `01 connect, 02 keys, 03 username, 04 domain, 05 done`. Step 04 (own domain): enter the domain, check (provider, MX warning, subdomain suggestion), create in Resend, records table with copy buttons and a per-record chip (`waiting`, `found in DNS`, `verified`), provider tips, 5 s polling (15 s after 2 min, paused in a hidden tab), "last checked Ns ago", "Check now" (30 s cooldown), "Use a different domain", resume after reload, live region for status changes.
+  - API: `POST /onboarding/domain/check`, `POST|GET|DELETE /onboarding/domain`, `POST /onboarding/domain/verify`; background verifier; Resend `domain.*` webhook events; `domain: {name, status}` in `/me` and `/onboarding/status`; agents on a verified user domain get `<agent>@<domain>` (mailbox and ENS `email`), all others the shared address.
+  - Run: `docker compose run --rm tools npm run test -w apps/api` (needs db up; includes `test/domains.test.ts`), `docker compose --profile e2e run --rm e2e npx playwright test tests/domain.spec.ts`.
+- **Migration:** `packages/db/migrations/0003_amazing_radioactive_man.sql`, only `user_domains`. Apply to `nanite_live` yourself (`DATABASE_URL=.../nanite_live`); it is already applied to the dev `nanite` database.
+- **To do before this works for real:** (1) `RESEND_API_KEY` Full access in the API env (already needed); (2) subscribe the webhook to the domain events: `docker compose run --rm tools npx tsx apps/api/scripts/resend-webhook-domain-events.ts` (lists webhooks), then `--id=<id> --apply`; (3) Resend free plan has 3 domains, 1 used, so a real user flow needs a free slot or a paid plan (`409 domain_limit_reached` otherwise); (4) give `nanitedemo` the platform domain with `apps/api/scripts/assign-domain.ts --user=nanitedemo --domain=nanitecom.itsvikrant.tech` (local DB only; verified only if Resend reports it verified).
+- **Deviations / notes:**
+  - No new onboarding enum value: the `domain` step is derived from `user_domains` (state stays `name_claimed` until `complete`), so the migration adds only the table.
+  - Mailboxes of user domains point at a `domains` row (owner = the user) created when the first agent is added.
+  - `GET /onboarding/domain` answers 404 `no_domain` before a domain exists (the wizard only calls it when `/me` has a domain).
+  - Rate-limited verify answers `429 verify_rate_limited` with `retryAfterSeconds` and a `Retry-After` header.
+  - The public-suffix list is a small hard-coded set of two-level suffixes (co.uk, co.in, com.au and others), not the full list.
+  - `FAKE_RESEND_DOMAINS=1` (non-production) wires an in-memory Resend and DNS for dev; it never verifies by itself.
+  - `apps/api/test/outbound.test.ts` (signature v3 headers) was already failing when I ran the suite; it is outside this task.
