@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { deriveAgentWallet } from "@nanite/crypto"
-import { BotIcon, MailIcon, PlusIcon, RotateCcwIcon, SettingsIcon } from "lucide-react"
+import { BotIcon, MailIcon, PlusIcon, RotateCcwIcon, SettingsIcon, ShieldCheckIcon } from "lucide-react"
 
 import { EnsName, StatusLine } from "@/components/nanite"
 import { useCopy } from "@/components/nanite/use-copy"
@@ -12,19 +12,56 @@ import { UnlockLink } from "@/components/unlock-link"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { api, ApiError } from "@/lib/api"
-import { ENS_PARENT } from "@/lib/config"
+import { apiBaseUrl, ENS_PARENT } from "@/lib/config"
 import { useKeys } from "@/lib/key-context"
 import { useSession } from "@/lib/session-context"
 
+import { CodeBlock } from "./code-block"
 import { TokenReveal } from "./token-reveal"
 import { agentErrorText, jobLines, type AgentJobStatus, type AgentSummary } from "./types"
 
 const NAME_RE = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])$/
+const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
+
+type Custody = "nanite" | "self"
+
+/** Base64 of exactly 32 bytes (the X25519 public key that `nanite-mcp keygen` prints). */
+export function isEncryptionPublicKey(v: string): boolean {
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(v)) return false
+  try {
+    return atob(v).length === 32 && btoa(atob(v)) === v
+  } catch {
+    return false
+  }
+}
+
+/** MCP client config for a self-hosted agent (local mode): the key file never leaves the agent's machine. */
+export function localMcpConfig(token: string): string {
+  return JSON.stringify(
+    {
+      mcpServers: {
+        nanite: {
+          command: "npx",
+          args: ["-y", "nanite-mcp"],
+          env: {
+            NANITE_API_URL: apiBaseUrl,
+            NANITE_AGENT_TOKEN: token,
+            NANITE_AGENT_KEY_FILE: "/home/you/.nanite/agent-key.json",
+          },
+        },
+      },
+    },
+    null,
+    2,
+  )
+}
 
 interface Created {
   agent: AgentSummary
@@ -43,6 +80,10 @@ export function AddAgent() {
   const [created, setCreated] = React.useState<Created | null>(null)
   const [job, setJob] = React.useState<AgentJobStatus | null>(null)
   const [stored, setStored] = React.useState(false)
+  const [custody, setCustody] = React.useState<Custody>("nanite")
+  const [encKey, setEncKey] = React.useState("")
+  const [signerAddr, setSignerAddr] = React.useState("")
+  const [createdCustody, setCreatedCustody] = React.useState<Custody>("nanite")
 
   React.useEffect(() => {
     void refresh()
@@ -67,6 +108,9 @@ export function AddAgent() {
   const nextIndex = existing ? existing.reduce((m, a) => Math.max(m, a.index + 1), 0) : null
   const label = name.trim().toLowerCase()
   const nameOk = NAME_RE.test(label)
+  const encOk = isEncryptionPublicKey(encKey.trim())
+  const signerOk = ADDRESS_RE.test(signerAddr.trim())
+  const keysOk = custody === "nanite" || (encOk && signerOk)
   const createdId = created?.agent.id
   const jobRunning = job ? job.status === "queued" || job.status === "running" : !!created
 
@@ -84,7 +128,7 @@ export function AddAgent() {
   }, [createdId, jobRunning])
 
   async function submit() {
-    if (!keys || nextIndex === null || !nameOk) return
+    if (!keys || nextIndex === null || !nameOk || !keysOk) return
     setError(null)
     setBusy(true)
     try {
@@ -92,8 +136,15 @@ export function AddAgent() {
       const wallet = await deriveAgentWallet(keys.seed, nextIndex)
       const res = await api<Created>("/agents", {
         method: "POST",
-        body: { name: label, index: nextIndex, walletAddress: wallet.address },
+        body: {
+          name: label,
+          index: nextIndex,
+          walletAddress: wallet.address,
+          // Self-hosted: only PUBLIC values leave the agent's machine (the keys were made by `nanite-mcp keygen`).
+          ...(custody === "self" ? { encryptionPublicKey: encKey.trim(), signerAddress: signerAddr.trim() } : {}),
+        },
       })
+      setCreatedCustody(custody)
       setCreated(res)
       setJob(res.status)
     } catch (e) {
@@ -119,6 +170,9 @@ export function AddAgent() {
     setJob(null)
     setName("")
     setStored(false)
+    setCustody("nanite")
+    setEncKey("")
+    setSignerAddr("")
     setError(null)
     loadList()
   }
@@ -177,6 +231,78 @@ export function AddAgent() {
                 void submit()
               }}
             >
+              <fieldset className="flex flex-col gap-3">
+                <legend className="mb-2 text-sm font-medium">Who holds the agent&apos;s key?</legend>
+                <RadioGroup value={custody} onValueChange={(v) => setCustody(v as Custody)} aria-label="Key custody">
+                  <Field orientation="horizontal">
+                    <RadioGroupItem value="nanite" id="custody-nanite" />
+                    <FieldContent>
+                      <FieldLabel htmlFor="custody-nanite">Nanite holds the agent key (simplest)</FieldLabel>
+                      <FieldDescription>
+                        Nanite decrypts this agent&apos;s mail for it, so a plain API token is all the agent needs. Works with the hosted MCP endpoint.
+                      </FieldDescription>
+                    </FieldContent>
+                  </Field>
+                  <Field orientation="horizontal">
+                    <RadioGroupItem value="self" id="custody-self" />
+                    <FieldContent>
+                      <FieldLabel htmlFor="custody-self">Hold the key yourself (self-hosted)</FieldLabel>
+                      <FieldDescription>
+                        You generate the keys on the agent&apos;s machine. Nanite stores only public values and can never read this agent&apos;s inbox.
+                      </FieldDescription>
+                    </FieldContent>
+                  </Field>
+                </RadioGroup>
+              </fieldset>
+
+              {custody === "self" && (
+                <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4" data-testid="self-hosted-keys">
+                  <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span>
+                      Run this on the machine where the agent runs. It writes the private keys to a file there (mode 600) and prints only the two public values to paste below.
+                    </span>
+                  </p>
+                  <CodeBlock title="terminal" text="npx nanite-mcp keygen" testId="keygen-command" />
+                  <Field data-invalid={encKey.trim() !== "" && !encOk ? true : undefined}>
+                    <FieldLabel htmlFor="enc-key">Encryption public key</FieldLabel>
+                    <Input
+                      id="enc-key"
+                      value={encKey}
+                      onChange={(e) => setEncKey(e.target.value)}
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      placeholder="44 characters, ends with ="
+                      className="font-mono"
+                      aria-invalid={encKey.trim() !== "" && !encOk}
+                      aria-describedby="enc-key-hint"
+                    />
+                    <FieldDescription id="enc-key-hint">Base64, as printed by keygen. Mail for this agent is sealed to it.</FieldDescription>
+                    {encKey.trim() !== "" && !encOk && <FieldError>That is not a 32-byte base64 key. Paste the line from keygen.</FieldError>}
+                  </Field>
+                  <Field data-invalid={signerAddr.trim() !== "" && !signerOk ? true : undefined}>
+                    <FieldLabel htmlFor="signer-address">Signer address</FieldLabel>
+                    <Input
+                      id="signer-address"
+                      value={signerAddr}
+                      onChange={(e) => setSignerAddr(e.target.value)}
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      placeholder="0x…"
+                      className="font-mono"
+                      aria-invalid={signerAddr.trim() !== "" && !signerOk}
+                      aria-describedby="signer-address-hint"
+                    />
+                    <FieldDescription id="signer-address-hint">
+                      Published on the agent&apos;s ENS name as <code className="font-mono">nanite.signer</code>, so anyone can verify mail the agent signs.
+                    </FieldDescription>
+                    {signerAddr.trim() !== "" && !signerOk && <FieldError>That is not an Ethereum address (0x and 40 hex characters).</FieldError>}
+                  </Field>
+                </div>
+              )}
+
               <Field>
                 <FieldLabel htmlFor="agent-name">Agent name</FieldLabel>
                 <InputGroup>
@@ -198,7 +324,7 @@ export function AddAgent() {
                   {!label || nameOk ? "2 to 32 characters: a-z, 0-9 and inner hyphens." : "Use 2 to 32 characters: a-z, 0-9 and inner hyphens."}
                 </FieldDescription>
               </Field>
-              <Button type="submit" disabled={!nameOk || busy || nextIndex === null} className="self-start">
+              <Button type="submit" disabled={!nameOk || !keysOk || busy || nextIndex === null} className="self-start">
                 {busy ? <Spinner data-icon="inline-start" /> : <PlusIcon data-icon="inline-start" />}
                 Add agent
               </Button>
@@ -252,6 +378,23 @@ export function AddAgent() {
           </Card>
 
           <TokenReveal token={created.token} onConfirmChange={setStored} />
+
+          {createdCustody === "self" && (
+            <Card>
+              <CardHeader>
+                <CardTitle role="heading" aria-level={2} className="font-heading text-xl">Connect your MCP client</CardTitle>
+                <CardDescription>
+                  Local mode: the MCP server runs on your machine, reads your key file and decrypts mail there. Add this to Claude Desktop or Claude Code, and use the absolute path of the key file that keygen printed.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <CodeBlock title="mcp config (local mode)" text={localMcpConfig(created.token)} testId="mcp-config" />
+                <p className="text-sm text-muted-foreground" data-testid="self-hosted-trust">
+                  Mail you receive stays encrypted to your key: Nanite cannot read it. Mail you send passes through Nanite and Resend in plain text, and Nanite writes the encrypted sent copy.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="flex flex-wrap gap-3">
             {stored ? (

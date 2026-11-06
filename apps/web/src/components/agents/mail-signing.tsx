@@ -17,6 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { api, ApiError } from "@/lib/api"
@@ -36,9 +38,12 @@ const RECORD_BADGE: Record<SignerInfo["record"], { variant: "success" | "warning
   none: { variant: "outline", label: "not set up", text: "" },
 }
 
+const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
+
 /**
- * Mail signing (option B): the server signs this agent's outgoing mail with a key kept only on the server and
- * publishes its address as the ENS text record `nanite.signer`. The key is never shown; only the address is.
+ * Mail signing. Nanite-held agents (option B): the server signs with a key kept only on the server and publishes its
+ * address as the ENS text record `nanite.signer`. Self-hosted agents: the key is on the agent's machine; here you only
+ * register (rotate) its ADDRESS. Either way the key is never shown; only the address is.
  */
 export function MailSigning({ agentId }: { agentId: string }) {
   const [info, setInfo] = React.useState<SignerInfo | null>(null)
@@ -48,6 +53,7 @@ export function MailSigning({ agentId }: { agentId: string }) {
   const [error, setError] = React.useState<string | null>(null)
   const [confirm, setConfirm] = React.useState(false)
   const [tick, setTick] = React.useState(0)
+  const [newAddress, setNewAddress] = React.useState("")
 
   React.useEffect(() => {
     let cancelled = false
@@ -82,8 +88,14 @@ export function MailSigning({ agentId }: { agentId: string }) {
     setError(null)
     setBusy(true)
     try {
-      setJob(await api<AgentJobStatus>(`/agents/${agentId}/signer`, { method: "POST" }))
+      setJob(
+        await api<AgentJobStatus>(`/agents/${agentId}/signer`, {
+          method: "POST",
+          ...(info && info.managed === false ? { body: { address: newAddress.trim() } } : {}),
+        }),
+      )
       setConfirm(false)
+      setNewAddress("")
     } catch (e) {
       setBusy(false)
       setConfirm(false)
@@ -102,6 +114,8 @@ export function MailSigning({ agentId }: { agentId: string }) {
 
   const rec = RECORD_BADGE[info.record]
   const hasSigner = !!info.address
+  const selfHosted = info.managed === false
+  const addrOk = ADDRESS_RE.test(newAddress.trim())
   return (
     <Card>
       <CardHeader>
@@ -112,6 +126,7 @@ export function MailSigning({ agentId }: { agentId: string }) {
         <CardDescription>
           Each message this agent sends carries a signature. Anyone can check it against the <code className="font-mono">nanite.signer</code> record on the
           agent&apos;s ENS name.
+          {selfHosted && " This agent signs with a key on its own machine; Nanite only knows the address."}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -122,9 +137,7 @@ export function MailSigning({ agentId }: { agentId: string }) {
         )}
 
         {!info.supported ? (
-          <p className="text-sm text-muted-foreground">
-            This agent keeps its own keys (self custody), so Nanite does not sign its mail. It is sent unsigned.
-          </p>
+          <p className="text-sm text-muted-foreground">This agent does not sign its mail.</p>
         ) : hasSigner ? (
           <>
             <div className="flex flex-col gap-1">
@@ -142,10 +155,38 @@ export function MailSigning({ agentId }: { agentId: string }) {
               </p>
             )}
           </>
+        ) : selfHosted ? (
+          <p className="text-sm text-muted-foreground">
+            No signer address is registered, so this agent&apos;s mail goes out unsigned. Run <code className="font-mono">nanite-mcp rotate-signer</code> on its
+            machine and paste the address below.
+          </p>
         ) : (
           <p className="text-sm text-muted-foreground">
             This agent has no signing key yet, so its mail goes out unsigned. Set one up to make its mail verifiable.
           </p>
+        )}
+
+        {selfHosted && info.supported && (
+          <Field data-invalid={newAddress.trim() !== "" && !addrOk ? true : undefined}>
+            <FieldLabel htmlFor="new-signer-address">{hasSigner ? "New signer address" : "Signer address"}</FieldLabel>
+            <Input
+              id="new-signer-address"
+              value={newAddress}
+              onChange={(e) => setNewAddress(e.target.value)}
+              disabled={busy || running}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="0x…"
+              className="font-mono"
+              aria-invalid={newAddress.trim() !== "" && !addrOk}
+              aria-describedby="new-signer-address-hint"
+            />
+            <FieldDescription id="new-signer-address-hint">
+              Run <code className="font-mono">nanite-mcp rotate-signer</code> on the agent&apos;s machine. It replaces only the signer key and prints the new address.
+            </FieldDescription>
+            {newAddress.trim() !== "" && !addrOk && <FieldError>That is not an Ethereum address (0x and 40 hex characters).</FieldError>}
+          </Field>
         )}
 
         {job && (
@@ -179,7 +220,12 @@ export function MailSigning({ agentId }: { agentId: string }) {
 
         {info.supported && (
           <div className="flex flex-wrap items-center gap-3">
-            {hasSigner ? (
+            {selfHosted ? (
+              <Button variant="outline" disabled={busy || running || !addrOk} onClick={() => setConfirm(true)}>
+                {busy || running ? <Spinner data-icon="inline-start" /> : <RefreshCwIcon data-icon="inline-start" />}
+                {hasSigner ? "Rotate signer address" : "Publish signer address"}
+              </Button>
+            ) : hasSigner ? (
               <Button variant="outline" disabled={busy || running} onClick={() => setConfirm(true)}>
                 {busy || running ? <Spinner data-icon="inline-start" /> : <RefreshCwIcon data-icon="inline-start" />}
                 Rotate signing key
@@ -200,10 +246,11 @@ export function MailSigning({ agentId }: { agentId: string }) {
       <Dialog open={confirm} onOpenChange={(v) => !busy && setConfirm(v)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rotate the signing key?</DialogTitle>
+            <DialogTitle>{selfHosted ? "Rotate the signer address?" : "Rotate the signing key?"}</DialogTitle>
             <DialogDescription>
-              A new key replaces the old one and its address is written to ENS (one transaction). Mail already sent was signed with the old key and will no longer
-              verify against the new record. Do this if the old key may have leaked.
+              {selfHosted
+                ? "The new address is written to ENS (one transaction). The agent must already use the new key (nanite-mcp rotate-signer), and mail signed with the old key is rejected from now on. Mail already sent will no longer verify against the new record."
+                : "A new key replaces the old one and its address is written to ENS (one transaction). Mail already sent was signed with the old key and will no longer verify against the new record. Do this if the old key may have leaked."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -212,7 +259,7 @@ export function MailSigning({ agentId }: { agentId: string }) {
             </DialogClose>
             <Button disabled={busy} onClick={() => void start()}>
               {busy && <Spinner data-icon="inline-start" />}
-              Rotate key
+              {selfHosted ? "Publish address" : "Rotate key"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -33,12 +33,16 @@ function fakeApi(page: Page, opts: { state: "started" | "done"; agents?: Agent[]
     revoked: false,
     signer: {
       supported: true,
+      custody: "nanite" as "nanite" | "self",
+      managed: true,
       address: "0x1111111111111111111111111111111111111111" as string | null,
       record: "published" as "none" | "pending" | "published" | "mismatch" | "unavailable",
       onchain: null as string | null,
     },
     signerPosts: 0,
     signerPolls: -1,
+    signerBody: null as Record<string, unknown> | null,
+    signerNext: "0x2222222222222222222222222222222222222222",
   };
   const signerJob = () => {
     const done = s.signerPolls >= 1;
@@ -135,11 +139,13 @@ function fakeApi(page: Page, opts: { state: "started" | "done"; agents?: Agent[]
           if (sub === "signer" && m === "POST") {
             s.signerPosts++;
             s.signerPolls = 0;
-            return json(202, { ...signerJob(), status: "queued", signerAddress: "0x2222222222222222222222222222222222222222", rotated: !!s.signer.address });
+            s.signerBody = req.postData() ? req.postDataJSON() : null;
+            if (typeof s.signerBody?.address === "string") s.signerNext = s.signerBody.address;
+            return json(202, { ...signerJob(), status: "queued", signerAddress: s.signerNext, rotated: !!s.signer.address });
           }
           if (sub === "status" && m === "GET" && s.signerPolls >= 0) {
             if (s.signerPolls < 1) s.signerPolls++;
-            if (s.signerPolls >= 1) s.signer = { supported: true, address: "0x2222222222222222222222222222222222222222", record: "published", onchain: null };
+            if (s.signerPolls >= 1) s.signer = { ...s.signer, supported: true, address: s.signerNext, record: "published", onchain: null };
             return json(200, signerJob());
           }
           if (sub === "status" && m === "GET") {
@@ -352,18 +358,145 @@ test("agent settings: mail signing section (states, rotate with confirm, set up,
   await axe(page, "signing rotated");
 
   // An agent without a signer yet can set one up (no confirm needed); self custody explains itself.
-  api.s.signer = { supported: true, address: null, record: "none", onchain: null };
+  api.s.signer = { supported: true, custody: "nanite", managed: true, address: null, record: "none", onchain: null };
   api.s.signerPolls = -1;
   await gotoOrFixme(page, `/agents/${AGENT_ID}/settings`);
   await expect(page.getByRole("button", { name: /set up signing/i })).toBeVisible();
   await axe(page, "signing not set up");
   await page.getByRole("button", { name: /set up signing/i }).click();
   await expect(page.getByTestId("signer-address")).toHaveText("0x2222222222222222222222222222222222222222", { timeout: 20_000 });
-  api.s.signer = { supported: false, address: null, record: "none", onchain: null };
-  await gotoOrFixme(page, `/agents/${AGENT_ID}/settings`);
-  await expect(page.getByText(/keeps its own keys/i)).toBeVisible();
-  await expect(page.getByRole("button", { name: /signing key|set up signing/i })).toHaveCount(0);
-  await axe(page, "signing self custody");
+  expect(problems.filter((p) => !ignorable(p))).toEqual([]);
+});
+
+const ENC_KEY = Buffer.from(new Uint8Array(32).fill(7)).toString("base64");
+const SIGNER_A = "0x" + "ab".repeat(20);
+const SIGNER_B = "0x" + "cd".repeat(20);
+
+test("agent settings, self-hosted agent: shows the registered address and rotates it by pasting a new one (no server key)", async ({ page }) => {
+  test.setTimeout(90_000);
+  const problems = watchProblems(page);
+  const api = fakeApi(page, { state: "done", agents: [activeAgent()] });
+  api.s.signer = { supported: true, custody: "self", managed: false, address: SIGNER_A, record: "published", onchain: null };
+  await api.install();
+  const shot = (n: string) => page.screenshot({ path: `${OUT}/${n}.png`, fullPage: true });
+  const section = () => page.getByRole("heading", { level: 2, name: /^mail signing/i }).locator("xpath=ancestor::*[@data-slot='card'][1]");
+
+  for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(vp);
+    await gotoOrFixme(page, `/agents/${AGENT_ID}/settings`);
+    await expect(page.getByTestId("signer-address")).toHaveText(SIGNER_A);
+    await expect(section().getByText(/key on its own machine/i)).toBeVisible();
+    await shot(`23-self-hosted-signing-${vp.width}`);
+  }
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await axe(page, "self-hosted signing");
+  // No server-side key actions for a self-hosted agent.
+  await expect(page.getByRole("button", { name: /rotate signing key|set up signing/i })).toHaveCount(0);
+
+  const rotate = page.getByRole("button", { name: /rotate signer address/i });
+  await expect(rotate).toBeDisabled();
+  await page.getByLabel("New signer address").fill("0x123");
+  await expect(page.getByText(/not an ethereum address/i)).toBeVisible();
+  await expect(rotate).toBeDisabled();
+  await axe(page, "self-hosted signing invalid");
+  await page.getByLabel("New signer address").fill(SIGNER_B);
+  await rotate.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await axe(page, "self-hosted rotate dialog");
+  await dialog.getByRole("button", { name: /^cancel$/i }).click();
+  await expect(dialog).toBeHidden();
+  expect(api.s.signerPosts).toBe(0);
+  await rotate.click();
+  await page.getByRole("dialog").getByRole("button", { name: /^publish address$/i }).click();
+  await expect(page.getByText("Signing key published to ENS")).toBeAttached({ timeout: 20_000 });
+  expect(api.s.signerBody).toEqual({ address: SIGNER_B });
+  await expect(page.getByTestId("signer-address")).toHaveText(SIGNER_B);
+  await axe(page, "self-hosted rotated");
+  expect(problems.filter((p) => !ignorable(p))).toEqual([]);
+});
+
+test("add-agent, self-hosted choice: keygen command, validated public values, MCP config for local mode", async ({ page }) => {
+  test.setTimeout(150_000);
+  const problems = watchProblems(page);
+  const api = fakeApi(page, { state: "started" });
+  await api.install();
+  await mockWallet(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const shot = (n: string, w: number) => page.screenshot({ path: `${OUT}/${n}-${w}.png`, fullPage: true });
+
+  await gotoOrFixme(page, "http://nanite.test:3000/onboarding");
+  await page.getByRole("button", { name: /connect metamask/i }).click();
+  await page.getByRole("button", { name: /sign in with ethereum/i }).click();
+  await page.getByRole("button", { name: /create keys/i }).click();
+  await expect(page.getByText(/save your recovery code now/i)).toBeVisible({ timeout: 30_000 });
+  const groups = await page.getByRole("list", { name: /recovery code groups/i }).getByRole("listitem").allInnerTexts();
+  await page.getByRole("checkbox", { name: /i stored this code/i }).click();
+  const n = Number(/group (\d)/.exec(await page.locator("label[for=recovery-check]").innerText())![1]);
+  await page.locator("#recovery-check").fill(groups[n - 1]!);
+  await page.getByRole("button", { name: /finish key setup/i }).click();
+  await expect(page.getByRole("heading", { name: /you are set/i })).toBeVisible();
+  await page.evaluate(() => (window as unknown as { next: { router: { push: (p: string) => void } } }).next.router.push("/agents/new"));
+  await expect(page.getByText(/this will be agent #0/i)).toBeVisible();
+
+  // The simple choice is the default; the self-hosted block is hidden until chosen.
+  await expect(page.getByRole("radio", { name: /nanite holds the agent key/i })).toBeChecked();
+  await expect(page.getByTestId("self-hosted-keys")).toHaveCount(0);
+  await page.getByLabel("Agent name").fill("kit");
+  await page.getByRole("radio", { name: /hold the key yourself/i }).click();
+  await expect(page.getByTestId("keygen-command")).toHaveText("npx nanite-mcp keygen");
+  const add = page.getByRole("button", { name: /^add agent$/i });
+  await expect(add).toBeDisabled(); // needs both public values
+  for (const w of [1440, 390]) {
+    await page.setViewportSize({ width: w, height: w === 390 ? 844 : 900 });
+    await shot("20-self-hosted-choice", w);
+  }
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await axe(page, "self-hosted choice");
+
+  // Validation of the pasted public values.
+  await page.getByLabel("Encryption public key").fill("not-a-key");
+  await expect(page.getByText(/not a 32-byte base64 key/i)).toBeVisible();
+  await page.getByLabel("Signer address").fill("0x123");
+  await expect(page.getByText(/not an ethereum address/i)).toBeVisible();
+  await expect(add).toBeDisabled();
+  await axe(page, "self-hosted invalid");
+  await page.getByLabel("Encryption public key").fill(ENC_KEY);
+  await page.getByLabel("Signer address").fill(SIGNER_A);
+  await expect(add).toBeEnabled();
+  await page.waitForTimeout(500); // let the invalid-to-valid colour transition finish before the screenshots
+  for (const w of [1440, 390]) {
+    await page.setViewportSize({ width: w, height: w === 390 ? 844 : 900 });
+    await shot("21-self-hosted-keys", w);
+  }
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await axe(page, "self-hosted keys");
+
+  await add.click();
+  await expect.poll(() => api.s.createBody !== null).toBe(true);
+  // Only public values are posted (never a private key; the seed stays in the browser).
+  expect(Object.keys(api.s.createBody!).sort()).toEqual(["encryptionPublicKey", "index", "name", "signerAddress", "walletAddress"]);
+  expect(api.s.createBody).toMatchObject({ name: "kit", encryptionPublicKey: ENC_KEY, signerAddress: SIGNER_A });
+
+  const cfg = page.getByTestId("mcp-config");
+  await expect(cfg).toBeVisible();
+  const text = await cfg.innerText();
+  const parsed = JSON.parse(text);
+  expect(parsed.mcpServers.nanite.env).toMatchObject({
+    NANITE_API_URL: API,
+    NANITE_AGENT_TOKEN: TOKEN,
+    NANITE_AGENT_KEY_FILE: expect.stringContaining("agent-key.json"),
+  });
+  await expect(page.getByTestId("self-hosted-trust")).toContainText(/Nanite cannot read it/i);
+  await expect(page.getByRole("heading", { name: /agent ready/i })).toBeVisible({ timeout: 30_000 });
+  for (const w of [1440, 390]) {
+    await page.setViewportSize({ width: w, height: w === 390 ? 844 : 900 });
+    await shot("22-self-hosted-done", w);
+  }
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await axe(page, "self-hosted done");
+  const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
+  expect(stored).not.toContain("A1b2C3d4E5");
   expect(problems.filter((p) => !ignorable(p))).toEqual([]);
 });
 

@@ -37,8 +37,12 @@ export interface SendPolicyValue {
 
 /** GET /agents/:id/signer. `record` is read fresh from ENS (`nanite.signer`). */
 export interface SignerInfo {
-  /** False for self-custody agents: they send unsigned mail. */
+  /** Always true now: self-hosted agents sign their own mail with a key on their machine. */
   supported: boolean
+  /** "nanite": the server holds the signer key. "self": only the address is registered; the key is on the agent's machine. */
+  custody?: "nanite" | "self"
+  /** True when Nanite holds the signer key (it can rotate it); false for self-hosted agents. Absent means true. */
+  managed?: boolean
   address: string | null
   record: "none" | "pending" | "published" | "mismatch" | "unavailable"
   onchain: string | null
@@ -75,7 +79,9 @@ export function agentErrorText(code: string): string {
     chain_unavailable: "The Sepolia node did not answer. Try again in a moment.",
     invalid_allow: "One of the allowlist entries is not valid.",
     invalid_limit: "The daily limit must be a whole number from 0 to 10000.",
-    self_custody_no_signer: "This agent keeps its own keys, so Nanite does not sign its mail.",
+    invalid_signer: "That is not a valid Ethereum address.",
+    invalid_encryption_key: "That encryption public key is not valid. Paste the base64 line from nanite-mcp keygen.",
+    signer_requires_self_custody: "A signer address can only be given for a self-hosted agent.",
     not_found: "Agent not found.",
   }
   return map[code] ?? "Something went wrong. Try again."
