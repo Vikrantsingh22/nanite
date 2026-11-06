@@ -12,7 +12,9 @@ secrets/
 next-env.d.ts
 e2e/artifacts/
 e2e/test-results/
+e2e/test-results-headed/
 .shots/
 e2e/.playwright-cli/
 e2e/.playwright/
 packages/ens/live-*.log
+apps/api/.live-agent-token
