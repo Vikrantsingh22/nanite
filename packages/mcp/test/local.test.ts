@@ -130,6 +130,8 @@ describe("local mode (self-hosted agent)", () => {
       extendable: true,
     });
     seen.length = 0;
+    expect(json(await mcp.callTool({ name: "whoami", arguments: {} }))).toEqual({ email: EMAIL, ensName: ENS, custody: "self" });
+    seen.length = 0;
     const r = json(await mcp.callTool({ name: "extend_email", arguments: { entityKey: key1, days: 90 } }));
     expect(r).toEqual({ status: "extended", expiresAtBlock: "500", expiresAt: "2026-12-01T00:00:00.000Z" });
     expect(seen).toEqual([{ path: `/v1/emails/${key1}/extend`, raw: null, auth: `Bearer ${TOKEN}`, post: { days: 90 } }]);

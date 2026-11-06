@@ -25,6 +25,22 @@ export function createNaniteMcpServer(client: NaniteBackend, version = "0.0.1") 
   const server = new McpServer({ name: "nanite", version });
 
   server.registerTool(
+    "whoami",
+    {
+      title: "Who am I",
+      description:
+        "Your own identity: the email address to give out (sign-ups, replies), your ENS name and who holds your key. Call this first if you need your address.",
+      inputSchema: {},
+    },
+    async () => {
+      const r = await client.me();
+      if (!r.ok) return out(r);
+      const b = r.body as { email?: string | null; ensName?: string; custody?: string };
+      return out({ ok: true, status: r.status, body: { email: b.email ?? null, ensName: b.ensName, custody: b.custody } });
+    },
+  );
+
+  server.registerTool(
     "list_inbox",
     {
       title: "List inbox",

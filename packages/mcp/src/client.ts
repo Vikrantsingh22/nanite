@@ -80,4 +80,6 @@ export interface NaniteBackend {
   waitForEmail(p: { type?: string; since?: number; timeout?: number }): Promise<ApiResult>;
   sendEmail(p: { to: string; subject: string; body: string; inReplyTo?: string }): Promise<ApiResult>;
   extendEmail(entityKey: string, days: number): Promise<ApiResult>;
+  /** GET /v1/me: { ensName, email, custody, keyId }. */
+  me(): Promise<ApiResult>;
 }

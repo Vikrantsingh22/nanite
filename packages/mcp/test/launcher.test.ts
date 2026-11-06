@@ -91,17 +91,18 @@ describe("nanite-mcp launcher (real child process)", () => {
     expect(r.stdout).not.toContain(after.signerPrivateKey);
   }, 30_000);
 
-  it("local mode (NANITE_AGENT_KEY_FILE) completes the MCP handshake and lists 6 tools", async () => {
+  it("local mode (NANITE_AGENT_KEY_FILE) completes the MCP handshake and lists 7 tools", async () => {
     const dir = await tmp();
     expect((await run(["keygen", "--out", dir])).code).toBe(0);
     const tools = await listTools({ ...dummyApi, NANITE_AGENT_KEY_FILE: join(dir, "agent-key.json") });
-    expect(tools).toHaveLength(6);
+    expect(tools).toHaveLength(7);
     expect(tools).toContain("extend_email");
+    expect(tools).toContain("whoami");
   }, 30_000);
 
-  it("hosted mode (no key file) lists 6 tools", async () => {
+  it("hosted mode (no key file) lists 7 tools", async () => {
     const tools = await listTools(dummyApi);
-    expect(tools).toHaveLength(6);
+    expect(tools).toHaveLength(7);
   }, 30_000);
 
   it("missing env: clear error on stderr, nothing on stdout, non-zero exit", async () => {

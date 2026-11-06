@@ -151,6 +151,8 @@ export function createLocalBackend(client: Pick<NaniteClient, "listInbox" | "get
     // Nothing to decrypt: the API moves the expiry. Same call as hosted mode.
     extendEmail: (entityKey, days) => client.extendEmail(entityKey, days),
 
+    me: () => client.me(),
+
     async sendEmail(p) {
       const who = await ensureMe();
       if (isErr(who)) return who;

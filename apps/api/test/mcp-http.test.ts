@@ -149,10 +149,19 @@ describe("POST /mcp", () => {
     expect((await call(`Bearer ${t.token}`)).status).toBe(401);
   });
 
-  it("lists the five tools", async () => {
+  it("lists the seven tools", async () => {
     const c = await mcpClient(makeApp(), A.token);
     const { tools } = await c.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["extend_email", "get_email", "get_latest_otp", "list_inbox", "send_email", "wait_for_email"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["extend_email", "get_email", "get_latest_otp", "list_inbox", "send_email", "wait_for_email", "whoami"]);
+    await c.close();
+  });
+
+  it("whoami returns the agent's own ensName, custody and email", async () => {
+    const c = await mcpClient(makeApp(), A.token);
+    const me = json(await c.callTool({ name: "whoami", arguments: {} }));
+    expect(me).toMatchObject({ ensName: A.ens, custody: "nanite" });
+    expect(Object.keys(me).sort()).toEqual(["custody", "email", "ensName"]);
+    expect(me.email === null || /@mail\.nanite\.test$/.test(me.email)).toBe(true);
     await c.close();
   });
 

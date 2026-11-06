@@ -50,10 +50,18 @@ describe("nanite MCP wrapper (hosted mode)", () => {
     }
   });
 
-  it("lists the six tools and flags untrusted content in descriptions", async () => {
+  it("whoami returns email, ensName and custody from GET /v1/me", async () => {
+    const { client, calls } = await connect(() => Response.json({ ensName: "bot.nanitecom.eth", email: "bot@mail.nanite.test", custody: "nanite", keyId: "k1" }));
+    const r = await client.callTool({ name: "whoami", arguments: {} });
+    expect(JSON.parse(text(r))).toEqual({ email: "bot@mail.nanite.test", ensName: "bot.nanitecom.eth", custody: "nanite" });
+    expect(calls[0]!.url.pathname).toBe("/v1/me");
+    expect(calls[0]!.auth).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("lists the seven tools and flags untrusted content in descriptions", async () => {
     const { client } = await connect(() => new Response("{}"));
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["extend_email", "get_email", "get_latest_otp", "list_inbox", "send_email", "wait_for_email"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["extend_email", "get_email", "get_latest_otp", "list_inbox", "send_email", "wait_for_email", "whoami"]);
     expect(tools.find((t) => t.name === "extend_email")!.description).toMatch(/only mail the user would want to keep/i);
     for (const n of ["get_email", "get_latest_otp", "wait_for_email"]) {
       expect(tools.find((t) => t.name === n)!.description).toMatch(/UNTRUSTED/);
