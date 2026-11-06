@@ -16,8 +16,13 @@ export interface EmailMeta {
   from?: string;
   /** Recipient address of a sent mail. */
   to?: string;
-  /** Original Message-ID header of an inbound mail, e.g. "<abc@example.com>". */
+  /**
+   * Message-ID header of the mail as it exists in mailboxes, e.g. "<abc@example.com>". Inbound: the sender's id.
+   * Sent copies: the id the PROVIDER assigned on delivery (Resend/SES replace ours), when it could be fetched.
+   */
   messageId?: string;
+  /** Sent copies: our own id (the signed X-Nanite-Message-Id header, `<sendLogId@domain>`). */
+  naniteMessageId?: string;
   /** Original References header ids (message ids, oldest first) of an inbound mail. */
   references?: string[];
   /** Sent copies of replies: the Message-ID this mail answered (the In-Reply-To header value). */
