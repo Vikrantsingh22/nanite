@@ -1,15 +1,104 @@
 # Nanite
 
-Nanite gives every AI agent its own email address. Mail is encrypted before it is stored on [Arkiv](https://arkiv.network) (Rabdi testnet), so only the user and the agent can read it. Identity and permissions live on ENSv2 (Sepolia) under `nanitecom.eth`: an agent is a name like `alex.username.nanitecom.eth`, and its ENS records say who it is, what it may write, and whom it may email.
+> **DKIM proves the domain. Nanite proves the agent.**
 
-Built for the ETHGlobal "Build on Arkiv" and "Best Use of ENSv2" prizes. Status: hackathon build.
+Nanite gives every AI agent its own email address, with an identity anyone can check and mail that belongs to you.
 
-**Live:** web app https://nanite.itsvikrant.tech, API https://api.nanite.itsvikrant.tech (hosted MCP: https://api.nanite.itsvikrant.tech/mcp).
+- **Identity on ENSv2.** Each agent is an ENS name under its owner's, for example `support.vikrantsingh.nanitecom.eth`. Its rules are public text records: whom it may email (`nanite.send`), how many mails a day (`nanite.send-limit`) and the key its mail is signed with (`nanite.signer`). The agent's own key can't change them.
+- **Signed mail.** Every mail an agent sends carries `X-Nanite-Agent` and `X-Nanite-Signature`. Anyone can check the signature against the agent's ENS record, without asking a Nanite server.
+- **Mail you own, on Arkiv.** Every email is an Arkiv entity. Nanite creates it and hands it to the user's wallet in the same transaction. The payload is ciphertext: a fresh key per email, sealed to the user's key and the agent's key. Login codes expire on chain after 5 minutes and other mail after 2 days, unless you keep it.
+- **Works with any AI agent over MCP.** Seven tools (`whoami`, `list_inbox`, `get_email`, `wait_for_email`, `get_latest_otp`, `send_email`, `extend_email`). A hosted agent uses Nanite's MCP endpoint. A self-hosted agent keeps its key on its own machine, so Nanite only ever sees its ciphertext.
+
+Built at ETHGlobal Mumbai 2026 for **Build on Arkiv** and **Best Use of ENSv2**.
+
+| | |
+| --- | --- |
+| Live app | https://nanite.itsvikrant.tech |
+| API and hosted MCP | https://api.nanite.itsvikrant.tech, https://api.nanite.itsvikrant.tech/mcp |
+| Demo video | TODO: add the link after upload |
+| Networks | ENSv2 on Sepolia (`nanitecom.eth`), Arkiv Rabdi testnet (chain 7794095), real email through Resend on `nanitecom.itsvikrant.tech` |
+
+## The problem
+
+AI agents now sign up for tools, answer support mail and follow up with customers. They all need email, and today that mail has two problems.
+
+1. **No identity.** DKIM proves only the domain, and millions of senders share the same domains. When an agent emails you, you can't tell whose agent it is or what it is allowed to do.
+2. **No control.** Giving an agent OAuth access to your inbox hands it your whole mailbox. Inbox APIs built for agents keep the mail and the rules in the vendor's database.
+
+Nanite puts the identity and the rules on ENS, where anyone can read them, and puts the mail on Arkiv, owned by your wallet.
+
+## How it works
+
+![How one email flows through Nanite: sender, Resend, Nanite API, Arkiv, ENS rules, AI agent over MCP, your browser, and a verifier](docs/diagrams/nanite-flow.png)
+
+Source: [docs/diagrams/nanite-flow.excalidraw](docs/diagrams/nanite-flow.excalidraw) (open it on excalidraw.com). In words:
+
+1. **Create an agent.** Sign in with your wallet and claim `<you>.nanitecom.eth`. Adding an agent registers `<agent>.<you>.nanitecom.eth` with its own resolver and writes its records: address, `email`, `nanite.send`, `nanite.send-limit`, `nanite.signer`, `agent-endpoint[mcp]`.
+2. **Mail arrives.** Resend receives it and calls the Nanite API. The API encrypts it with a fresh key, seals that key to you and to the agent, and writes it to Arkiv as an entity. The same batch transfers the entity to your wallet.
+3. **You read it.** Your browser unlocks your key with one wallet signature and decrypts the mail locally. **Keep** extends a mail's life on Arkiv.
+4. **The agent reads and replies over MCP.** Before every send, the API reads the agent's rules fresh from ENS. A reply-only agent can answer only people who wrote to it. Over the limit, the send is refused.
+5. **Anyone verifies.** A recipient resolves `X-Nanite-Agent` on ENS, reads `nanite.signer` and checks the signature. Change one character of the mail and the check fails.
+
+Two kinds of agents:
+
+| | Hosted (for example `support`) | Self-hosted (for example `vault`) |
+| --- | --- | --- |
+| Who holds the agent's key | Nanite, sealed under a server master key | The agent's own machine |
+| Who can decrypt its mail | You, and Nanite's server (to run the agent's tools) | You and the agent only; Nanite gets ciphertext (`409 self_custody`) |
+| Who signs its mail | Nanite's server, with the agent's signer key | The agent itself |
+
+## Proven live
+
+- **Self-hosted agent end to end, on production (2026-11-07)** (`vault.vikrantsingh.nanitecom.eth`). A mail from Gmail was stored on Arkiv as ciphertext only, and the API refused to return plaintext (`409 self_custody`). Claude Code read it through the local MCP kit, which decrypted it on the machine, and replied in the thread. In Gmail, the reply's signature verified against live ENS (`valid`). A copy with one changed character failed (`signer_mismatch`).
+- **ENS rules enforced (2026-11-06).** In the MCP end-to-end run, a send to someone who never wrote to a reply-only agent was refused with `403 policy_reply_only`, and no mail went out.
+- **ENS records readable by anyone (2026-11-07).** `demo/scripts/ens-records.ts` reads `support.vikrantsingh.nanitecom.eth` straight from Sepolia: `nanite.send` reply-only, `nanite.send-limit` 50, its `nanite.signer`, and the production MCP endpoint.
+- **MCP verified (2026-11-06)** with MCP Inspector and the MCP SDK, over both hosted HTTP and local stdio: all tools pass. On production, see "Live verification" in [docs/mcp.md](docs/mcp.md).
+- **Tests and checks.** Lint, typecheck, API and unit tests, Playwright end-to-end tests, and live runs against Sepolia, Arkiv Rabdi and real Resend mail. Details: [apps/api/LIVE-CHECK.md](apps/api/LIVE-CHECK.md), [docs/mcp.md](docs/mcp.md), [docs/logbook.md](docs/logbook.md).
+
+## Try it
+
+1. Open https://nanite.itsvikrant.tech and connect a wallet (Sepolia). Claim a username, save the recovery code, and choose the shared mail domain.
+2. Add an agent. It takes about a minute of Sepolia transactions.
+3. Email it from any mailbox. The mail shows up in its inbox, decrypted in your browser.
+4. Connect an AI client to it. In the agent's settings, create a token, then:
+   ```bash
+   claude mcp add --transport http nanite https://api.nanite.itsvikrant.tech/mcp --header "Authorization: Bearer <token>"
+   ```
+   Ask it to `whoami`, read its latest mail and reply. Full guide: [docs/mcp.md](docs/mcp.md).
+5. Read the agent's public records:
+   ```bash
+   docker compose run --rm -w /app/apps/api tools npx tsx ../../demo/scripts/ens-records.ts <agent>.<you>.nanitecom.eth
+   ```
+6. Verify a reply it sent you: copy the `X-Nanite-*` headers from "Show original" into a JSON file and run `apps/api/scripts/verify-mail-signature.ts` (see "Verifiable outbound mail" below).
+
+Demo kits: [demo/self-hosted/](demo/self-hosted/) (a self-hosted agent through the local MCP kit) and [demo/scripts/](demo/scripts/). The step-by-step user guide is [docs/user-guide.md](docs/user-guide.md).
+
+## How we use Arkiv
+
+- **One entity per email**, schema `nanite.email.v1`. The payload is ciphertext. Public attributes cover only what queries need: agent, type, time, thread id, reader key ids and a per-user pseudonym of the sender. Details: [arkiv/schema.md](arkiv/schema.md).
+- **The user owns the mail.** The operator creates each entity and calls `changeOwnership` to the user's wallet in the same `executeBatch`. After that, Nanite can't edit, delete or take it back. Users need no tGLM.
+- **Expiry is retention.** Login codes get 5 minutes and can't be extended. Other mail gets 2 days, with `permissionlessExtension`, so **Keep** (7, 30, 90 or 182 days) and the agent's `extend_email` can extend it. Lifetimes are per agent, set on ENS (`nanite.otp-ttl`, `nanite.mail-ttl`).
+- **Poisoning defence.** Anyone can write entities with our schema, and anyone can transfer one into your wallet. So every query is pinned to our creator address, and the reader checks the creator again on every row.
+- **Why Arkiv and not Postgres:** with Postgres, we would own and could read every agent's mail. See [arkiv/why-arkiv.md](arkiv/why-arkiv.md). What hurt while building it, with repro scripts: [arkiv/friction.md](arkiv/friction.md), [arkiv/build-notes.md](arkiv/build-notes.md).
+
+## How we use ENSv2
+
+- **A namespace per agent.** `nanitecom.eth` → `<user>.nanitecom.eth` (owned by the user) → `<agent>.<user>.nanitecom.eth`, each agent with its own PermissionedResolver, because ENSv2 resolver roles are scoped per key, not per name.
+- **Least privilege.** The agent's key may write only `agent-context`. The chain rejects anything else (`EACUnauthorizedAccountRoles`, tested in `scripts/ens/verify.ts`). The operator holds only registrar and renew roles, and the user can revoke them.
+- **Policy as records.** `nanite.send` (`off`, `reply-only`, `allowlist`, `any`), `nanite.send-allow`, `nanite.send-limit`, `nanite.signer`, retention records, `email` and `agent-endpoint[mcp]`. They are read fresh before every send. If ENS can't be read, the send fails closed (`502 policy_unavailable`).
+- **Revoke.** Revoking an agent kills its token and removes its ENS roles.
+
+Full role tables and real Sepolia names: [docs/ens.md](docs/ens.md).
 
 ## Where to look
 
 | Question | File |
 | --- | --- |
+| The pitch, and the honest answers to likely questions | [docs/pitch.md](docs/pitch.md) |
+| How everything works: signing, encryption, agent creation, with code references | [docs/how-it-works.md](docs/how-it-works.md) |
+| Using the app, step by step | [docs/user-guide.md](docs/user-guide.md) |
+| Connecting an AI agent over MCP | [docs/mcp.md](docs/mcp.md) |
+| How it is deployed | [docs/deployment.md](docs/deployment.md) |
 | How is email stored on Arkiv? Attributes, expiry, size, runnable query | [arkiv/schema.md](arkiv/schema.md), [arkiv/query.curl.sh](arkiv/query.curl.sh) |
 | What hurt on Arkiv and ENSv2? | [arkiv/friction.md](arkiv/friction.md); evidence and repro scripts: [arkiv/friction-evidence.md](arkiv/friction-evidence.md) |
 | Who is it for, why Arkiv, how it is used | [arkiv/reach.md](arkiv/reach.md), [arkiv/why-arkiv.md](arkiv/why-arkiv.md), [arkiv/how-you-use-arkiv.md](arkiv/how-you-use-arkiv.md) |
@@ -17,6 +106,12 @@ Built for the ETHGlobal "Build on Arkiv" and "Best Use of ENSv2" prizes. Status:
 | Encryption format | [packages/crypto/README.md](packages/crypto/README.md) |
 | Wallet addresses (no keys anywhere in the repo) | [docs/wallets.md](docs/wallets.md) |
 | Live test evidence | [apps/api/LIVE-CHECK.md](apps/api/LIVE-CHECK.md), [packages/ens/live-check.md](packages/ens/live-check.md) |
+
+---
+
+# Reference
+
+The rest of this README is the detailed design and API reference.
 
 ## Architecture
 
@@ -201,7 +296,7 @@ The server verifies the signature against the agent's `nanite.signer` text recor
 
 ### Verifiable outbound mail
 
-Mail sent by an agent is signed (Nanite-held agents: by the server; self-hosted agents: by the agent itself, see above), so a recipient can check that it really came from that agent and was not altered. The agent's seed-derived wallet stays its identity (its key never leaves the user's browser). Separately, the server holds one secp256k1 **signer key** per agent that only signs outgoing mail. The key is sealed under `NANITE_MASTER_KEY` (bound to the agent id) and its address is published on the agent's ENS name as the text record `nanite.signer`, written by the operator. The send response says `"signature": "signed"`, or `"unavailable"` for self-custody agents and agents without a signer (the mail then goes out unsigned).
+Mail sent by an agent is signed (Nanite-held agents: by the server; self-hosted agents: by the agent itself, see above), so a recipient can check that it really came from that agent and was not altered. The agent's seed-derived wallet stays its identity (its key never leaves the user's browser). Separately, the server holds one secp256k1 **signer key** per agent that only signs outgoing mail. The key is sealed under `NANITE_MASTER_KEY` (bound to the agent id) and its address is published on the agent's ENS name as the text record `nanite.signer`, written by the operator. The send response says `"signature": "signed"`, or `"unavailable"` for agents without a signer and self-hosted sends that carry no signature (the mail then goes out unsigned).
 
 Headers on every signed mail: `X-Nanite-Agent` (the ENS name), `X-Nanite-Date`, `X-Nanite-Signature` (EIP-191 `personal_sign`, 65 bytes hex), `X-Nanite-Sig-Version: 3` and `X-Nanite-Message-Id: <sendLogId@domain>` (our own id). The signed string is:
 
